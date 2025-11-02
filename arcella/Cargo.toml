@@ -30,6 +30,7 @@ regex = "1.12.2"
 futures = "0.3.31"
 toml_edit = "0.23.7"
 indexmap = "2.12.0"
+ordered-float = { version = "5.1.0"}
 
 [[test]]
 name = "integration_tests"

@@ -10,9 +10,10 @@
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 use tokio::task::JoinHandle;
+use tokio::fs;
 
 use crate::runtime::ArcellaRuntime;
-use crate::error::Result as ArcellaResult;
+use crate::error::{ArcellaError, Result as ArcellaResult};
 
 mod commands;
 mod server;
@@ -48,7 +49,16 @@ impl Drop for AlmeServerHandle {
 /// Starts the ALME (Arcella Local Management Extensions) server in the background,
 /// providing IPC access to the shared runtime instance.
 pub async fn start(runtime: Arc<RwLock<ArcellaRuntime>>) -> ArcellaResult<AlmeServerHandle>  {
-    let socket_path = runtime.read().await.config.socket_path.clone();
+
+    let (base_dir, socket_path) = {
+        let config = &runtime.read().await.config;
+        let base_dir = config.base_dir.clone();
+        let socket_path = config.extract_path_value("alme.socket_path")?;
+        (base_dir, socket_path)
+    }; 
+
+    let socket_path = base_dir.join(socket_path);
+    tracing::info!("Socket path: {:?}", socket_path);
 
     server::spawn_server(socket_path, runtime).await    
 
