@@ -35,14 +35,19 @@ async fn main() -> ArcellaResult<()> {
 
     // 1. Load configuration (e.g., paths, runtime options)
     let _ = Cli::parse(); 
-    let (config_data, warning) = config::load().await?;
+    let (config_data, warnings) = config::load().await?;
     let config = Arc::new(config_data);
 
     // 2. Initialize logging (should be the first side effect)
-    let _log_guard = log::init(&config)?;
+    let log_guard: Option<tracing_appender::non_blocking::WorkerGuard> = log::init(&config)?;
     tracing::info!("Starting up (v{})", env!("CARGO_PKG_VERSION"));
 
-    // 3. Initialize core subsystems: storage and module cache
+    // 3. Log warnings from config loading
+    for warning in warnings {
+        tracing::warn!("{}", warning);
+    }
+
+    // 4. Initialize core subsystems: storage and module cache
     let storage = Arc::new(storage::StorageManager::new(&config).await?);
     tracing::debug!("Initialize storage");
     let cache = Arc::new(cache::ModuleCache::new(&config).await?);
@@ -60,8 +65,12 @@ async fn main() -> ArcellaResult<()> {
     tokio::signal::ctrl_c().await?;
     tracing::info!("Received Ctrl+C, shutting down...");
 
-    runtime.write().await.shutdown().await?;
-    alme_handle.shutdown().await?;
+    if let Err(e) = runtime.write().await.shutdown().await {
+        tracing::error!("Runtime shutdown error: {}", e);
+    }
+    if let Err(e) = alme_handle.shutdown().await {
+        tracing::error!("ALME shutdown error: {}", e);
+    }
 
     tracing::info!("Shutting down");
         
@@ -108,7 +117,7 @@ async fn main() -> ArcellaResult<()> {
         }
     }*/
 
-    drop(_log_guard);
+    drop(log_guard);
 
     Ok(())
     
