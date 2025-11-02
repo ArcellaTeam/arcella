@@ -7,10 +7,26 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+//! Configuration loading and validation for the Arcella runtime.
+//!
+//! This module is responsible for:
+//! - Locating the base directory and configuration directory.
+//! - Ensuring the main configuration file (`arcella.toml`) exists (creating it from a template if needed).
+//! - Loading the built-in default configuration and user-provided configuration files recursively.
+//! - Merging configuration layers with strict rules for overriding and extension.
+//! - Validating the integrity of critical configuration files via modification time (`mtime`) checks.
+//!
+//! The configuration model enforces a layered approach:
+//! 1. **Built-in defaults** — minimal safe defaults shipped with Arcella.
+//! 2. **Main config (`arcella.toml`)** — user-editable root configuration.
+//! 3. **Included configs** — additional files loaded via `includes` directives.
+//!
+//! Only keys explicitly marked with `#redef` in a higher-priority layer may be overridden by lower layers.
+//! New keys may only be introduced under the `arcella.custom` or `arcella.modules` namespaces.
+
 use futures::future;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
 use indexmap::{map::Entry, IndexMap, IndexSet};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -26,12 +42,47 @@ use arcella_fs_utils as fs_utils;
 
 use crate::error::{ArcellaError, Result as ArcellaResult};
 
-const REDEF_SUFFIX: &str = "#redef";
-const MAIN_CONFIG_FILENAME: &str = "arcella.toml";
-const DEFAULT_CONFIG_FILENAME: &str = "default_config.toml";
+/// Standard prefix for all built-in Arcella configuration keys.
+pub const ARCELLA_PREFIX: &str = "arcella.";
+
+/// Section name for user-defined custom configuration keys.
+///
+/// Keys under `arcella.custom.*` may be freely added by users or modules.
+const CUSTOM_SECTION: &str = "custom";
+
+/// Section name for module-specific configuration.
+///
+/// Keys under `arcella.modules.*` are reserved for dynamic module configuration.
+const MODULES_SECTION: &str = "modules";
+
+/// Full prefix for custom configuration keys.
+const CUSTOM_PREFIX_FULL: &str = "arcella.custom";
+
+/// Full prefix for module configuration keys.
+const MODULES_PREFIX_FULL: &str = "arcella.modules";
+
+/// Content of the built-in default configuration (fallback values).
 const DEFAULT_CONFIG_CONTENT: &str = include_str!("default_config.toml");
+
+/// Special marker path for the built-in default configuration.
+///
+/// This is **not a real filesystem path**; it is used only as an identifier
+/// in the global `config_files` registry.
+const DEFAULT_CONFIG_FILENAME: &str = "<builtin:default_config.toml>";
+
+/// Name of the main user-editable configuration file.
+const MAIN_CONFIG_FILENAME: &str = "arcella.toml";
+
+/// Suffix used to mark keys that allow redefinition by lower-priority layers.
+///
+/// Example: `log.level#redef = "debug"` in `arcella.toml` permits `log.level`
+/// to be overridden by included files.
+const REDEF_SUFFIX: &str = "#redef";
+
+/// Content of the template configuration file used for first-time setup.
 const TEMPLATE_CONFIG_CONTENT: &str = include_str!("template_config.toml");
 
+/// Configuration integrity metadata parsed from the `[integrity]` section (if present).
 #[derive(Deserialize, Default)]
 struct IntegrityCheck {
     #[serde(default)]
@@ -40,25 +91,52 @@ struct IntegrityCheck {
     dirs: Vec<String>,
 }
 
+/// Final resolved Arcella configuration after merging all layers.
 #[derive(Debug, Clone)]
 pub struct ArcellaConfig {
+    /// Flattened key-value configuration map.
+    pub config_values: ConfigValues,
+
+    /// Base directory of the Arcella installation (e.g., parent of `bin/`).
     pub base_dir: PathBuf,
+
+    /// Directory containing `arcella.toml` and included configs.
     pub config_dir: PathBuf,
+
+    /// Directory for log files.
     pub log_dir: PathBuf,
+
+    /// Directory for runtime modules.
     pub modules_dir: PathBuf,
+
+    /// Directory for cached data.
     pub cache_dir: PathBuf,
+
+    /// Path to the ALME (Arcella Local Management Extensions) Unix socket.
     pub socket_path: PathBuf,
-    pub integrity_check_paths: Vec<PathBuf>,
+
+    /// Integrity checker for critical configuration files.
+    pub integrity_checker: IntegrityChecker,
 }
 
+/// Tracks file modification times to detect unauthorized changes after startup.
 #[derive(Debug, Clone)]
 pub struct IntegrityChecker {
+
+    /// List of paths to monitor.
     paths: Vec<PathBuf>,
+
+    /// Initial modification times recorded at startup.
     initial_mtimes: HashMap<PathBuf, SystemTime>,
 }
 
 impl IntegrityChecker {
+    /// Creates a new integrity checker by recording the current `mtime` of all given paths.
+    ///
+    /// **Note**: This function is synchronous and blocks the current thread.
+    /// For production use, it should be called via `tokio::task::spawn_blocking`.
     pub fn new(paths: Vec<PathBuf>) -> ArcellaResult<Self> {
+        // TODO: Keep synchronous for MVP. In the future, consider making it fully asynchronous.
         let mut initial_mtimes = HashMap::new();
         for path in &paths {
             let metadata = std::fs::metadata(path)
@@ -70,12 +148,51 @@ impl IntegrityChecker {
         Ok(IntegrityChecker { paths, initial_mtimes })
     }
 
+    /// Checks whether any monitored file has been modified since startup.
+    ///
+    /// Returns an error if any file's `mtime` differs from the recorded value.
     pub async fn check(&self) -> ArcellaResult<()> {
         let current_mtimes = get_current_mtimes(&self.paths).await?;
         check_mtimes_changed(&self.initial_mtimes, &current_mtimes)
     }
 }
 
+/// Adds a warning that a value was ignored because the corresponding key
+/// was not marked with `#redef` in the main configuration layer.
+///
+/// # Arguments
+///
+/// * `key` – The configuration key that was ignored.
+/// * `config_idx` – The index of the config (in the `configs` vector) that lacked the `#redef` permission.
+/// * `config_files` – The global set of loaded config files (used to resolve file indices to paths).
+/// * `source_file_idx` – The index of the file that attempted to set the value (used for diagnostics).
+/// * `warnings` – Mutable vector to which the warning will be appended.
+fn add_no_redef_warning(
+    key: String,
+    config_idx: usize,
+    config_files: &IndexSet<PathBuf>,
+    source_file_idx: usize,
+    warnings: &mut Vec<fs_utils::ConfigLoadWarning>,
+) {
+    // Resolve the file path that attempted to set the value
+    let source_file_path = config_files
+        .get_index(source_file_idx)
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("unknown"));
+
+    warnings.push(fs_utils::ConfigLoadWarning::ValueError {
+        key,
+        error: format!(
+            "Value from file {:?} ignored due to no #redef flag in layer {}",
+            source_file_path, config_idx
+        ),
+        file: source_file_path,
+    });
+}
+
+/// Compares initial and current file modification times.
+///
+/// Returns an error if any file was modified or if a file is missing from the initial list.
 fn check_mtimes_changed(
     initial_mtimes: &HashMap<PathBuf, std::time::SystemTime>,
     current_mtimes: &HashMap<PathBuf, std::time::SystemTime>,
@@ -96,8 +213,9 @@ fn check_mtimes_changed(
     Ok(())
 }
 
+/// Retrieves current modification times for a list of paths concurrently.
 async fn get_current_mtimes(paths: &[PathBuf]) -> ArcellaResult<HashMap<PathBuf, std::time::SystemTime>> {
-    // Создадим вектор future'ов для каждой проверки mtime
+    // Create a vector of futures for each mtime check
     let checks: Vec<_> = paths.iter().map(|path| {
         let path = path.clone();
         async move {
@@ -109,30 +227,38 @@ async fn get_current_mtimes(paths: &[PathBuf]) -> ArcellaResult<HashMap<PathBuf,
         }
     }).collect();
 
-    // Запускаем все future'ы параллельно и ждем их завершения
+    // Run all futures in parallel and wait for completion
     let results = future::join_all(checks).await;
 
     let mut current_mtimes = HashMap::with_capacity(results.len());
     for result in results {
-        let (path, mtime) = result?; // Если одна из проверок завершится с ошибкой, propagate
+        // If any check fails, propagate the error
+        let (path, mtime) = result?;
         current_mtimes.insert(path, mtime);
     }
 
     Ok(current_mtimes)
 }
 
+/// Ensures that the main configuration file exists, creating it from a template if necessary.
+///
+/// Also ensures the template file (`arcella.template.toml`) exists.
+///
+/// **Note**: This function is not atomic and may be subject to race conditions
+/// if multiple Arcella instances start simultaneously. For production, consider
+/// using `O_CREAT | O_EXCL` semantics via `tokio::fs::OpenOptions::create_new(true)`.
 async fn ensure_main_config_exists(config_dir: &Path) -> ArcellaResult<(PathBuf, Vec<fs_utils::ConfigLoadWarning>)> {
     let main_config_path = config_dir.join(MAIN_CONFIG_FILENAME);
     let template_path = config_dir.join("arcella.template.toml");
 
     let mut warnings: Vec<fs_utils::ConfigLoadWarning> = vec![];
 
-    // Создать config_dir, если не существует
+    // Create config_dir if it doesn't exist
     fs::create_dir_all(config_dir)
         .await
         .map_err(|e| ArcellaError::IoWithPath { source: e, path: config_dir.to_path_buf() })?;
 
-    // Создать шаблон (arcella.template.toml), если он не существует
+    // Create template if missing
     if !template_path.exists() {
         fs::write(&template_path, TEMPLATE_CONFIG_CONTENT)
             .await
@@ -142,8 +268,9 @@ async fn ensure_main_config_exists(config_dir: &Path) -> ArcellaResult<(PathBuf,
         ));
     }
 
-    // Проверить, существует ли arcella.toml, если не существует, то скопировать файл из template_path
+    // Create main config from template if missing
     if !main_config_path.exists() {
+        // TODO: Potential race condition if another process creates the file between `exists()` and `copy()`.
         fs::copy(&template_path, &main_config_path).await?;
         warnings.push(fs_utils::ConfigLoadWarning::Internal(
             format!("Created default config at {:?}", main_config_path)
@@ -154,13 +281,26 @@ async fn ensure_main_config_exists(config_dir: &Path) -> ArcellaResult<(PathBuf,
 
 }
 
+/// Intermediate representation of a resolved configuration value during merging.
 struct ResolvedValue {
     value: TomlValue,
-    source_layer: usize,
-    source_file: usize,          // кто задал значение
-    redef_allowed_by: Option<usize>, // кто разрешил переопределение (None = запрещено)
+    source_config_idx: usize,
+    source_file_idx: usize,          // index in `config_files`
+    redef_allowed_by: Option<usize>, // file index that granted redefinition permission
 }
 
+/// Loads and validates the complete Arcella configuration.
+///
+/// This is the main entry point for configuration initialization.
+/// It performs the following steps:
+/// 1. Locates the base directory.
+/// 2. Sets up the config directory and ensures `arcella.toml` exists.
+/// 3. Loads the built-in default configuration.
+/// 4. Recursively loads user configuration and included files.
+/// 5. Merges all layers according to Arcella's override rules.
+/// 6. Validates required paths and integrity.
+///
+/// Returns the final `ArcellaConfig` and any non-fatal warnings collected during loading.
 pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWarning>)> {
     
     // 1. Find base_dir
@@ -169,18 +309,23 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
     // 2. Set config_dir
     let config_dir = base_dir.join("config");    
 
-    // 3. Ensure config_dir exists
+    // 3. Ensure config_dir and main config exist
     let (main_config_path, warnings) = ensure_main_config_exists(&config_dir).await?;
 
-    // 4. Load default config
+    // 4. Prepare paths for integrity checking (currently only main config)
+    let integrity_check_paths = vec![main_config_path.clone()];
+    let integrity_checker = IntegrityChecker::new(integrity_check_paths)?;
+    
+    // 5. Initialize loading state
     let mut state  = fs_utils::ConfigLoadState {
         config_files: IndexSet::new(),
         visited_paths: HashSet::new(),
-        warnings: warnings,
+        warnings,
     };
 
+    // 6. Register built-in default config
     let (file_idx, _) = state.config_files.insert_full(
-        PathBuf::from_str(DEFAULT_CONFIG_FILENAME).unwrap()
+        PathBuf::from(DEFAULT_CONFIG_FILENAME)
     );
     let (default_config, _) = fs_utils::toml::parse_and_collect(
         DEFAULT_CONFIG_CONTENT,
@@ -188,18 +333,20 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
         file_idx,
     )?;
 
-    // 5. Load arcella.toml and includes
+    // 7. Set up loading parameters
     let params = fs_utils::ConfigLoadParams {
         prefix: vec!["arcella".to_string()],
         config_dir: config_dir.to_path_buf(),
     };
 
+    // 8. Load main config and all included files recursively
     let configs = fs_utils::load_config_recursive_from_file(
         &params,
         &mut state,
         &main_config_path,
     ).await?;
 
+    // 9. Merge configuration layers
     let mut final_values = merge_config(
         &default_config,
         &configs,
@@ -207,53 +354,54 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
         &config_dir,
         &mut state.warnings,
     )?;
+
+    // 10. Sort keys for deterministic output
     final_values.sort_keys();
 
-    let log_dir = match final_values.get("arcella.log.dir") {
-        Some((TomlValue::String(s) ,_)) => {
-            PathBuf::from(s)
-        }
+    // 11. Extract required paths from merged config
+    let log_dir = match final_values.get(&(ARCELLA_PREFIX.to_owned() + "log.dir")) {
+        Some((TomlValue::String(s) ,_)) => PathBuf::from(s),
         _ => {
-            return Err(ArcellaError::Internal("arcella.log.dir is not set".to_string()));
+            return Err(ArcellaError::Internal(ARCELLA_PREFIX.to_owned() + "log.dir is not set"));
         }
     };
 
-    let modules_dir = match final_values.get("arcella.modules.dir") {
-        Some((TomlValue::String(s) ,_)) => {
-            PathBuf::from(s)
-        }
+    let modules_dir = match final_values.get(&(ARCELLA_PREFIX.to_owned() + "modules.dir")) {
+        Some((TomlValue::String(s) ,_)) => PathBuf::from(s),
         _ => {
-            return Err(ArcellaError::Internal("arcella.modules.dir is not set".to_string()));
+            return Err(ArcellaError::Internal(ARCELLA_PREFIX.to_owned() + "modules.dir is not set"));
         }
     };
 
-    let cache_dir = match final_values.get("arcella.cache.dir") {
-        Some((TomlValue::String(s) ,_)) => {
-            PathBuf::from(s)
-        }
+    let cache_dir = match final_values.get(&(ARCELLA_PREFIX.to_owned() + "cache.dir")) {
+        Some((TomlValue::String(s) ,_)) => PathBuf::from(s),
         _ => {
-            return Err(ArcellaError::Internal("arcella.cache.dir is not set".to_string()));
+            return Err(ArcellaError::Internal(ARCELLA_PREFIX.to_owned() + "cache.dir is not set"));
         }
     };
 
-    let socket_path = match final_values.get("arcella.alme.socket.path") {
-        Some((TomlValue::String(s) ,_)) => {
-            PathBuf::from(s)
-        }
+    let socket_path = match final_values.get(&(ARCELLA_PREFIX.to_owned() + "alme.socket.path")) {
+        Some((TomlValue::String(s) ,_)) => PathBuf::from(s),
         _ => {
-            return Err(ArcellaError::Internal("arcella.alme.socket.path is not set".to_string()));
+            return Err(ArcellaError::Internal(ARCELLA_PREFIX.to_owned() + "alme.socket.path is not set"));
         }
     };
 
-    Ok((ArcellaConfig {
-        base_dir: base_dir,
-        config_dir: config_dir,
-        log_dir: log_dir,
-        modules_dir: modules_dir,
-        cache_dir: cache_dir,
-        socket_path: socket_path,
-        integrity_check_paths: vec![],
-    }, state.warnings))
+    integrity_checker.check().await?;
+
+    Ok((
+        ArcellaConfig {
+            config_values: final_values,
+            base_dir,
+            config_dir,
+            log_dir,
+            modules_dir,
+            cache_dir,
+            socket_path,
+            integrity_checker,
+        },
+        state.warnings,
+    ))
 }
 
 fn merge_config(
@@ -266,9 +414,9 @@ fn merge_config(
     
     let mut preliminary_values: IndexMap<String, ResolvedValue> = IndexMap::new();
 
-    // Обрабатываем от низшего приоритета к высшему (но по индексу — от высокого к низкому)
-    for layer_idx in (0..configs.len()).rev() {
-        let config = &configs[layer_idx];
+    // Process from lowest to highest priority (i.e., reverse order of `configs`)
+    for config_idx in (0..configs.len()).rev() {
+        let config = &configs[config_idx];
         for (key, (value, file_idx)) in &config.values {
             // Check if the key ends with #redef
             let (actual_key, is_redef) = if key.ends_with(REDEF_SUFFIX) {
@@ -281,35 +429,34 @@ fn merge_config(
 
             match preliminary_values.entry(actual_key.clone()) {
                 Entry::Occupied(mut e) => {
-                    // Текущий слой имеет БОЛЕЕ ВЫСОКИЙ приоритет (меньший idx), чем e.get().source_layer
+                    // Current layer has HIGHER priority (lower idx) than the existing entry
                     if !is_redef { 
-                        // Более приоритетный слой задаёт значение — перезаписываем
-                        warnings.push(fs_utils::ConfigLoadWarning::ValueError {
-                            key: actual_key.clone(),
-                            error: format!(
-                                "Value from file {} ignored due to no #redef flag in layer {}",
-                                e.get().source_file,
-                                layer_idx,
-                            ),
-                            file: PathBuf::from(format!("layer_{}.toml", layer_idx)),
-                        });
-                        // Заменяем значение текущим
+                        add_no_redef_warning(
+                            actual_key.clone(),
+                            config_idx,
+                            config_files,
+                            e.get().source_file_idx ,
+                            warnings,
+                        );
+                        // Lower-priority layer is ignored; higher-priority layer sets the value.
+                        // Overwrite
                         let e = e.get_mut();
                         e.value = value.clone();
-                        e.source_layer = layer_idx;
-                        e.source_file = *file_idx;   
+                        e.source_config_idx = config_idx;
+                        e.source_file_idx = *file_idx;   
                     } else {
+                        // The key `actual_key` was already defined in a lower-priority layer
                         e.get_mut().redef_allowed_by = Some(*file_idx);
                     }
                 }
                 Entry::Vacant(_) => {
-                    // Место с этим ключом вакантно
+                    // No value for this key yet. Store the current value
                     preliminary_values.insert(
                         actual_key, 
                         ResolvedValue {
                             value: value.clone(),
-                            source_layer: layer_idx,
-                            source_file: *file_idx,   
+                            source_config_idx: config_idx,
+                            source_file_idx: *file_idx,   
                             redef_allowed_by: None,
                         }
                     );
@@ -319,13 +466,15 @@ fn merge_config(
         }
     }
 
-    let main_idx = config_files.get_index_of(&config_dir.join(MAIN_CONFIG_FILENAME)).unwrap();
-    let default_idx = config_files.get_index_of(&PathBuf::from_str(DEFAULT_CONFIG_FILENAME).unwrap()).unwrap();
+    let main_idx = config_files.get_index_of(&config_dir.join(MAIN_CONFIG_FILENAME)).expect("Main config must be in config_files");
+    let default_idx = config_files.get_index_of(
+        &PathBuf::from(DEFAULT_CONFIG_FILENAME)
+    ).expect("Default config must be in config_files");
 
     let mut final_values: ConfigValues = IndexMap::new();
 
-    // Create final config from default config
-    // Выполняем первичное заполнение из конфигурации по умолчанию
+    // Initialize final config from default config
+    // Perform initial population from the default configuration
     for (key, (value, file_idx)) in &default_config.values {
         final_values.insert(
             key.clone(), 
@@ -333,54 +482,54 @@ fn merge_config(
         );  
     }
 
-    // Merge preliminary values
+    // Merge `preliminary_values` with the default config
+    // Overriding values from the initial population is allowed only if:
+    // - The source is the main config (`source_file == main_idx`), OR
+    // - The main config contains this key with the `#redef` suffix (`redef_allowed_by == main_idx`)
+    // New keys (not present in the default config) are allowed only under
+    // `CUSTOM_PREFIX_FULL` or `MODULES_PREFIX_FULL`
     for (key, preliminary_value) in &preliminary_values {
-        // Флаг говорит о том, что раздел конфигурации допускает 
-        // доопределение параметров отсутствующих в конфигурации по умолчанию
-        let is_newable = key.starts_with("arcella.custom") 
-            || key.starts_with("arcella.modules");
+        // Flag indicating that the configuration section allows
+        // adding new keys not present in the default configuration
+        let is_newable = key.starts_with(CUSTOM_PREFIX_FULL) 
+            || key.starts_with(MODULES_PREFIX_FULL);
         let new_value = &preliminary_value.value;
-        let insert_index = preliminary_value.source_layer;
+        let insert_index = preliminary_value.source_config_idx;
 
         match final_values.entry(key.clone()) {
             Entry::Occupied(mut entry) => {
-                // Значение с данным ключем есть в конфигурации по умолчанию
-                if preliminary_value.source_file == main_idx {
-                    // Это значение из основной конфигурации поэтому
-                    // его можно использовать для замены значения по умолчанию
+                // This key exists in the default configuration
+                if preliminary_value.source_file_idx == main_idx {
+                    // This value comes from the main config, so it can override the default
                     entry.insert(
-                        (new_value.clone(), preliminary_value.source_file)
+                        (new_value.clone(), preliminary_value.source_file_idx)
                     );
                 } else if preliminary_value.redef_allowed_by == Some(main_idx) {
-                    // Это значение было в основной конфигурации поэтому
-                    // его можно использовать для замены значения по умолчанию
+                    // Redefinition was allowed by the main config, so override is permitted
                     entry.insert(
-                        (new_value.clone(), preliminary_value.source_file)
+                        (new_value.clone(), preliminary_value.source_file_idx)
                     );
                 } else {
-                    // Для замены значения по умолчанию в основной конфигурации
-                    // ключ параметра должен иметь суффикс #redef
-                    warnings.push(fs_utils::ConfigLoadWarning::ValueError {
-                        key: key.clone(),
-                        error: format!(
-                            "Value from file {} ignored due to #redef missing in arcella.toml",
-                            preliminary_value.source_file,
-                        ),
-                        file: PathBuf::from(format!("layer_{}.toml", insert_index)),
-                    })
-
+                    // To override a default value, the main config must mark the key with `#redef`
+                    add_no_redef_warning(
+                        key.clone(),
+                        0,
+                        config_files,
+                        preliminary_value.source_file_idx,
+                        warnings,
+                    );
                 }
             }
             Entry::Vacant(_) => {
-                // В конфигурации по умолчанию отсутствует данный ключ поэтому проверяем
-                // что новый параметр вставляется в разделы arcella.custom или arcella.modules
+                // This key is absent from the default config, so check
+                // that the new key is added under `arcella.custom` or `arcella.modules`
                 if is_newable {
                     final_values.insert(
                         key.clone(), 
-                        (new_value.clone(), preliminary_value.source_file)
+                        (new_value.clone(), preliminary_value.source_file_idx)
                     );
                 } else {
-                    // В этот раздел добавлять новые параметры нельзя
+                    // Adding new keys to this section is not allowed
                     warnings.push(fs_utils::ConfigLoadWarning::ValueError {
                         key: key.clone(),
                         error: format!(
@@ -408,11 +557,11 @@ mod tests {
 
     #[test]
     fn test_merge_config_example_from_docs() {
-        let config_dir = PathBuf::from_str("config").unwrap();
+        let config_dir = PathBuf::from("config");
         let mut config_files: IndexSet<PathBuf> = IndexSet::new();
 
-        // Встроенный конфиг по умолчанию (layer 0)
-        let (idx, _) = config_files.insert_full(PathBuf::from_str(DEFAULT_CONFIG_FILENAME).unwrap());
+        // Built-in default config (layer 0)
+        let (idx, _) = config_files.insert_full(PathBuf::from(DEFAULT_CONFIG_FILENAME));
         let mut default_values: ConfigValues = IndexMap::new();
         default_values.insert("arcella.log.level".to_string(), (make_toml_value("info"), idx));
         default_values.insert("arcella.log.file".to_string(), (make_toml_value("arcella_default.log"), idx));
@@ -427,7 +576,7 @@ mod tests {
         // arcella.toml (layer 1)
         let (idx, _) = config_files.insert_full(config_dir.join(MAIN_CONFIG_FILENAME));
         let mut main_config_values: ConfigValues = IndexMap::new();
-        // level#redef позволяет переопределение
+        // level#redef allows redefinition
         main_config_values.insert("arcella.log.level#redef".to_string(), (make_toml_value("warn"), idx));
         main_config_values.insert("arcella.log.file".to_string(), (make_toml_value("arcella_main.log"), idx));
         main_config_values.insert("arcella.server.port".to_string(), (make_toml_value("9000"), idx));
@@ -437,13 +586,13 @@ mod tests {
             values: main_config_values,
         };
 
-        // level_1.toml (layer 2, предполагаем, что он загружен через includes)
+        // level_1.toml (layer 2, assumed to be loaded via includes)
         let (idx, _) = config_files.insert_full(config_dir.join("level_1.toml"));
         let mut level_1_values: ConfigValues = IndexMap::new();
         level_1_values.insert("arcella.log.level".to_string(), (make_toml_value("debug"), idx));
-        level_1_values.insert("arcella.server.host".to_string(), (make_toml_value("127.0.0.1"), idx)); // Этот ключ не помечен как #redef в arcella.toml -> игнорируется
-        level_1_values.insert("arcella.server.name".to_string(), (make_toml_value("www.server.net"), idx)); // Новый ключ в arcella.server -> игнорируется
-        level_1_values.insert("arcella.custom.message".to_string(), (make_toml_value("Это дополнительный параметр"), idx)); // Новый ключ в arcella.custom -> разрешено
+        level_1_values.insert("arcella.server.host".to_string(), (make_toml_value("127.0.0.1"), idx)); // This key is not marked as #redef in arcella.toml -> ignored
+        level_1_values.insert("arcella.server.name".to_string(), (make_toml_value("www.server.net"), idx)); // New key in arcella.server -> ignored
+        level_1_values.insert("arcella.custom.message".to_string(), (make_toml_value("This is an additional parameter"), idx)); // New key in arcella.custom -> allowed
 
         let level_1_config = fs_utils::TomlFileData {
             includes: vec![],
@@ -461,21 +610,21 @@ mod tests {
             &config_dir,
             &mut warnings).expect("merge_config should succeed");
 
-        // Проверяем итоговую конфигурацию
-        assert_eq!(result.get("arcella.log.level"), Some(&(make_toml_value("debug"), 2))); // Переопределено из level_1.toml
-        assert_eq!(result.get("arcella.log.file"), Some(&(make_toml_value("arcella_main.log"), 1))); // Из arcella.toml
-        assert_eq!(result.get("arcella.server.port"), Some(&(make_toml_value("9000"), 1))); // Из arcella.toml
-        assert_eq!(result.get("arcella.server.host"), Some(&(make_toml_value("0.0.0.0"), 0))); // Осталось из default_config.toml
-        assert_eq!(result.get("arcella.custom.message"), Some(&(make_toml_value("Это дополнительный параметр"), 2))); // Из level_1.toml
+        // Verify final configuration
+        assert_eq!(result.get("arcella.log.level"), Some(&(make_toml_value("debug"), 2))); // Overridden from level_1.toml
+        assert_eq!(result.get("arcella.log.file"), Some(&(make_toml_value("arcella_main.log"), 1))); // From arcella.toml
+        assert_eq!(result.get("arcella.server.port"), Some(&(make_toml_value("9000"), 1))); // From arcella.toml
+        assert_eq!(result.get("arcella.server.host"), Some(&(make_toml_value("0.0.0.0"), 0))); // Remains from default_config.toml
+        assert_eq!(result.get("arcella.custom.message"), Some(&(make_toml_value("This is an additional parameter"), 2))); // From level_1.toml
 
-        // Проверяем предупреждения
+        // Verify warnings
         assert_eq!(warnings.len(), 2);
 
         let warning1 = &warnings[0];
         match warning1 {
             fs_utils::ConfigLoadWarning::ValueError { key, error, .. } => {
                 assert_eq!(key, "arcella.server.host");
-                assert!(error.contains("ignored due to #redef missing in arcella.toml"));
+                assert!(error.contains("ignored due to no #redef flag in layer "));
             }
             _ => panic!("Expected ValueError for arcella.server.host"),
         }
@@ -492,11 +641,11 @@ mod tests {
 
     #[test]
     fn test_merge_config_no_redef_prevents_override() {
-        let config_dir = PathBuf::from_str("config").unwrap();
+        let config_dir = PathBuf::from("config");
         let mut config_files: IndexSet<PathBuf> = IndexSet::new();
 
         // default_config (layer 0)
-        let (idx, _) = config_files.insert_full(PathBuf::from_str(DEFAULT_CONFIG_FILENAME).unwrap());
+        let (idx, _) = config_files.insert_full(PathBuf::from(DEFAULT_CONFIG_FILENAME));
         let mut default_values: ConfigValues = IndexMap::new();
         default_values.insert("arcella.server.host".to_string(), (make_toml_value("0.0.0.0"), idx));
         default_values.insert("arcella.server.port".to_string(), (make_toml_value("8090"), idx));
@@ -505,7 +654,7 @@ mod tests {
             values: default_values,
         };
 
-        // arcella.toml (layer 1) - не помечает host как #redef
+        // arcella.toml (layer 1) - does not mark host as #redef
         let (idx, _) = config_files.insert_full(config_dir.join(MAIN_CONFIG_FILENAME));
         let mut main_config_values: ConfigValues = IndexMap::new();
         main_config_values.insert("arcella.server.host".to_string(), (make_toml_value("192.168.1.1"), idx));
@@ -523,7 +672,7 @@ mod tests {
             values: level_1_values,
         };
 
-        // level_2.toml (layer 3) - пытается изменить host
+        // level_2.toml (layer 3) - attempts to change host
         let (idx, _) = config_files.insert_full(config_dir.join("level_2.toml"));
         let mut level_2_values: ConfigValues = IndexMap::new();
         level_2_values.insert("arcella.server.host".to_string(), (make_toml_value("127.0.0.1"), idx));
@@ -543,14 +692,14 @@ mod tests {
             &config_dir,
             &mut warnings).expect("merge_config should succeed");
 
-        assert_eq!(result.get("arcella.server.host"), Some(&(make_toml_value("192.168.1.1"), 1))); // Остается значение из arcella.toml
+        assert_eq!(result.get("arcella.server.host"), Some(&(make_toml_value("192.168.1.1"), 1))); // Remains value from arcella.toml
 
         assert_eq!(warnings.len(), 2);
         let warning_1 = &warnings[0];
         match warning_1 {
             fs_utils::ConfigLoadWarning::ValueError { key, error, .. } => {
                 assert_eq!(key, "arcella.server.host");
-                assert!(error.contains("Value from file 3 ignored due to no #redef flag in layer 0"));
+                assert!(error.contains("Value from file \"config/level_2.toml\" ignored due to no #redef flag in layer 0"));
             }
             _ => panic!("Expected ValueError for arcella.server.host due to missing #redef in arcella.toml when layer 2 tried to set it"),
         }
@@ -558,19 +707,19 @@ mod tests {
         match warning_2 {
             fs_utils::ConfigLoadWarning::ValueError { key, error, .. } => {
                 assert_eq!(key, "arcella.server.port");
-                assert!(error.contains("Value from file 2 ignored due to #redef missing in arcella.toml"));
+                assert!(error.contains("Value from file \"config/level_1.toml\" ignored due to no #redef flag in layer 0"));
             }
-            _ => panic!("Expexted ValueError for arcella.server.port due to missing #redef in arcella.toml when layer 1 tried to set it"),
+            _ => panic!("Expected ValueError for arcella.server.port due to missing #redef in arcella.toml when layer 1 tried to set it"),
         }
     }
 
     #[test]
     fn test_merge_config_redef_allows_override() {
-        let config_dir = PathBuf::from_str("config").unwrap();
+        let config_dir = PathBuf::from("config");
         let mut config_files: IndexSet<PathBuf> = IndexSet::new();
 
         // default_config (layer 0)
-        let (idx, _) = config_files.insert_full(PathBuf::from_str(DEFAULT_CONFIG_FILENAME).unwrap());
+        let (idx, _) = config_files.insert_full(PathBuf::from(DEFAULT_CONFIG_FILENAME));
         let mut default_values: ConfigValues = IndexMap::new();
         default_values.insert("arcella.log.level".to_string(), (make_toml_value("info"), idx));
         let default_config = fs_utils::TomlFileData {
@@ -578,7 +727,7 @@ mod tests {
             values: default_values,
         };
 
-        // arcella.toml (layer 1) - помечает level как #redef
+        // arcella.toml (layer 1) - marks level as #redef
         let (idx, _) = config_files.insert_full(config_dir.join(MAIN_CONFIG_FILENAME));
         let mut main_config_values: ConfigValues = IndexMap::new();
         main_config_values.insert("arcella.log.level#redef".to_string(), (make_toml_value("warn"), idx));
@@ -587,7 +736,7 @@ mod tests {
             values: main_config_values,
         };
 
-        // level_1.toml (layer 2) - может изменить level, так как arcella.toml пометила его как #redef
+        // level_1.toml (layer 2) - can change level because arcella.toml marked it as #redef
         let (idx, _) = config_files.insert_full(config_dir.join("level_1.toml"));
         let mut level_1_values: ConfigValues = IndexMap::new();
         level_1_values.insert("arcella.log.level#redef".to_string(), (make_toml_value("debug"), idx));
@@ -596,7 +745,7 @@ mod tests {
             values: level_1_values,
         };
 
-        // level_2.toml (layer 3) - может изменить level, так как level_1.toml пометил его как #redef
+        // level_2.toml (layer 3) - can change level because level_1.toml marked it as #redef
         let (idx, _) = config_files.insert_full(config_dir.join("level_2.toml"));
         let mut level_2_values: ConfigValues = IndexMap::new();
         level_2_values.insert("arcella.log.level".to_string(), (make_toml_value("trace"), idx));
@@ -616,18 +765,18 @@ mod tests {
             &config_dir,
             &mut warnings).expect("merge_config should succeed");
 
-        // Значение level должно быть переопределено из level_1.toml, так как #redef разрешил это в arcella.toml
+        // The level value should be overridden from level_1.toml because #redef allowed it in arcella.toml
         assert_eq!(result.get("arcella.log.level"), Some(&(make_toml_value("trace"), 3)));
         assert!(warnings.is_empty());
     }
 
     #[test]
     fn test_merge_config_new_key_in_custom_allowed() {
-        let config_dir = PathBuf::from_str("config").unwrap();
+        let config_dir = PathBuf::from("config");
         let mut config_files: IndexSet<PathBuf> = IndexSet::new();
 
         // default_config (layer 0)
-        let (idx, _) = config_files.insert_full(PathBuf::from_str(DEFAULT_CONFIG_FILENAME).unwrap());
+        let (idx, _) = config_files.insert_full(PathBuf::from(DEFAULT_CONFIG_FILENAME));
         let mut default_values: ConfigValues = IndexMap::new();
         default_values.insert("arcella.log.level".to_string(), (make_toml_value("info"), idx));
         let default_config = fs_utils::TomlFileData {
@@ -637,13 +786,13 @@ mod tests {
 
         // arcella.toml (layer 1)
         let (idx, _) = config_files.insert_full(config_dir.join(MAIN_CONFIG_FILENAME));
-        let main_config_values: ConfigValues = IndexMap::new(); // Пустой
+        let main_config_values: ConfigValues = IndexMap::new(); // Empty
         let main_config = fs_utils::TomlFileData {
             includes: vec![],
             values: main_config_values,
         };
 
-        // level_1.toml (layer 2) - добавляет новый ключ в arcella.custom
+        // level_1.toml (layer 2) - adds a new key under arcella.custom
         let (idx, _) = config_files.insert_full(config_dir.join("level_1.toml"));
         let mut level_1_values: ConfigValues = IndexMap::new();
         level_1_values.insert("arcella.custom.new_key".to_string(), (make_toml_value("new_value"), idx));
@@ -678,13 +827,13 @@ mod tests {
         };
 
         // arcella.toml (layer 1)
-        let main_config_values: ConfigValues = IndexMap::new(); // Пустой
+        let main_config_values: ConfigValues = IndexMap::new(); // Empty
         let main_config = fs_utils::TomlFileData {
             includes: vec![],
             values: main_config_values,
         };
 
-        // level_1.toml (layer 2) - пытается добавить новый ключ в arcella.server
+        // level_1.toml (layer 2) - attempts to add a new key under arcella.server
         let mut level_1_values: ConfigValues = IndexMap::new();
         level_1_values.insert("arcella.server.new_option".to_string(), (make_toml_value("some_value"), 2));
         let level_1_config = fs_utils::TomlFileData {
@@ -696,9 +845,9 @@ mod tests {
 
         let mut warnings = vec![];
 
-        let config_dir = PathBuf::from_str("config").unwrap();
+        let config_dir = PathBuf::from("config");
         let mut config_files: IndexSet<PathBuf> = IndexSet::new();
-        config_files.insert(PathBuf::from_str(DEFAULT_CONFIG_FILENAME).unwrap());
+        config_files.insert(PathBuf::from(DEFAULT_CONFIG_FILENAME));
         config_files.insert(config_dir.join(MAIN_CONFIG_FILENAME));
         config_files.insert(config_dir.join("level_1.toml"));
 
@@ -709,9 +858,9 @@ mod tests {
             &config_dir,
             &mut warnings).expect("merge_config should succeed");
 
-        // Новый ключ не должен появиться
+        // The new key should not appear
         assert!(!result.contains_key("arcella.server.new_option"));
-        // Должно быть предупреждение
+        // A warning should be issued
         assert_eq!(warnings.len(), 1);
         let warning = &warnings[0];
         match warning {
@@ -724,4 +873,3 @@ mod tests {
     }    
 
 }
-
