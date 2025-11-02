@@ -3,7 +3,7 @@
     current_path: &amp;[<a class="struct" href="https://doc.rust-lang.org/1.91.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>],
     file_idx: <a class="primitive" href="https://doc.rust-lang.org/1.91.0/std/primitive.usize.html">usize</a>,
     includes: &amp;mut <a class="struct" href="https://doc.rust-lang.org/1.91.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.91.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;,
-    values: &amp;mut ConfigValues,
+    values: &amp;mut <a class="type" href="../../arcella_types/config/type.ConfigValues.html" title="type arcella_types::config::ConfigValues">ConfigValues</a>,
     depth: <a class="primitive" href="https://doc.rust-lang.org/1.91.0/std/primitive.usize.html">usize</a>,
 ) -&gt; <a class="type" href="../error/type.Result.html" title="type arcella_fs_utils::error::Result">Result</a>&lt;<a class="enum" href="../types/enum.TraversalResult.html" title="enum arcella_fs_utils::types::TraversalResult">TraversalResult</a>&gt;</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Recursively traverses a TOML item to collect configuration values and <code>includes</code> directives.</p>
 <p>This function walks the TOML structure starting from <code>item</code>, building dot-separated
