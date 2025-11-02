@@ -115,6 +115,7 @@ dependencies = [
  "dirs",
  "futures",
  "indexmap",
+ "ordered-float",
  "regex",
  "serde",
  "serde_json",

@@ -7,7 +7,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! Configuration loading and validation for the Arcella runtime.
+//! Configuration loading, merging, and validation for the Arcella runtime.
 //!
 //! This module is responsible for:
 //! - Locating the base directory and configuration directory.
@@ -25,12 +25,14 @@
 //! New keys may only be introduced under the `arcella.custom` or `arcella.modules` namespaces.
 
 use futures::future;
+use ordered_float::OrderedFloat;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use indexmap::{map::Entry, IndexMap, IndexSet};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tokio::fs;
+use toml::value::Table;
 
 use arcella_types::{
     config::{
@@ -64,7 +66,7 @@ const MODULES_PREFIX_FULL: &str = "arcella.modules";
 /// Content of the built-in default configuration (fallback values).
 const DEFAULT_CONFIG_CONTENT: &str = include_str!("default_config.toml");
 
-/// Special marker path for the built-in default configuration.
+/// Special marker path for the built-in default configuration (not a real file).
 ///
 /// This is **not a real filesystem path**; it is used only as an identifier
 /// in the global `config_files` registry.
@@ -75,8 +77,8 @@ const MAIN_CONFIG_FILENAME: &str = "arcella.toml";
 
 /// Suffix used to mark keys that allow redefinition by lower-priority layers.
 ///
-/// Example: `log.level#redef = "debug"` in `arcella.toml` permits `log.level`
-/// to be overridden by included files.
+/// Example: `log.level#redef = "debug"` in `arcella.toml` permits  included files
+/// to override the `log.level` value.
 const REDEF_SUFFIX: &str = "#redef";
 
 /// Content of the template configuration file used for first-time setup.
@@ -94,7 +96,7 @@ struct IntegrityCheck {
 /// Final resolved Arcella configuration after merging all layers.
 #[derive(Debug, Clone)]
 pub struct ArcellaConfig {
-    /// Flattened key-value configuration map.
+    /// Flattened key-value configuration map (e.g., `"arcella.log.level"` → `"info"`).
     pub config_values: ConfigValues,
 
     /// Base directory of the Arcella installation (e.g., parent of `bin/`).
@@ -102,9 +104,6 @@ pub struct ArcellaConfig {
 
     /// Directory containing `arcella.toml` and included configs.
     pub config_dir: PathBuf,
-
-    /// Directory for log files.
-    pub log_dir: PathBuf,
 
     /// Directory for runtime modules.
     pub modules_dir: PathBuf,
@@ -359,33 +358,11 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
     final_values.sort_keys();
 
     // 11. Extract required paths from merged config
-    let log_dir = match final_values.get(&(ARCELLA_PREFIX.to_owned() + "log.dir")) {
-        Some((TomlValue::String(s) ,_)) => PathBuf::from(s),
-        _ => {
-            return Err(ArcellaError::Internal(ARCELLA_PREFIX.to_owned() + "log.dir is not set"));
-        }
-    };
+    let modules_dir = extract_path_value(&final_values, "modules.dir")?;
 
-    let modules_dir = match final_values.get(&(ARCELLA_PREFIX.to_owned() + "modules.dir")) {
-        Some((TomlValue::String(s) ,_)) => PathBuf::from(s),
-        _ => {
-            return Err(ArcellaError::Internal(ARCELLA_PREFIX.to_owned() + "modules.dir is not set"));
-        }
-    };
+    let cache_dir = extract_path_value(&final_values, "cache.dir")?;
 
-    let cache_dir = match final_values.get(&(ARCELLA_PREFIX.to_owned() + "cache.dir")) {
-        Some((TomlValue::String(s) ,_)) => PathBuf::from(s),
-        _ => {
-            return Err(ArcellaError::Internal(ARCELLA_PREFIX.to_owned() + "cache.dir is not set"));
-        }
-    };
-
-    let socket_path = match final_values.get(&(ARCELLA_PREFIX.to_owned() + "alme.socket.path")) {
-        Some((TomlValue::String(s) ,_)) => PathBuf::from(s),
-        _ => {
-            return Err(ArcellaError::Internal(ARCELLA_PREFIX.to_owned() + "alme.socket.path is not set"));
-        }
-    };
+    let socket_path = extract_path_value(&final_values, "alme.socket.path")?;
 
     integrity_checker.check().await?;
 
@@ -394,7 +371,6 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
             config_values: final_values,
             base_dir,
             config_dir,
-            log_dir,
             modules_dir,
             cache_dir,
             socket_path,
@@ -404,6 +380,16 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
     ))
 }
 
+/// Helper to extract a required string path value from config by suffix.
+fn extract_path_value(config: &ConfigValues, suffix: &str) -> ArcellaResult<PathBuf> {
+    let full_key = format!("{}{}", ARCELLA_PREFIX, suffix);
+    match config.get(&full_key) {
+        Some((TomlValue::String(s), _)) => Ok(PathBuf::from(s)),
+        _ => Err(ArcellaError::Internal(format!("{} is not set or not a string", full_key))),
+    }
+}
+
+/// Merges configuration layers according to Arcella's strict override and extension rules.
 fn merge_config(
     default_config: &fs_utils::TomlFileData,
     configs: &Vec<fs_utils::TomlFileData>,
@@ -421,8 +407,7 @@ fn merge_config(
             // Check if the key ends with #redef
             let (actual_key, is_redef) = if key.ends_with(REDEF_SUFFIX) {
                 // Extract the original key without the #redef suffix
-                let original_key = key[..key.len() - REDEF_SUFFIX.len()].to_string();
-                (original_key, true)
+                (key[..key.len() - REDEF_SUFFIX.len()].to_string(), true)
             } else {
                 (key.clone(), false)
             };
@@ -545,6 +530,73 @@ fn merge_config(
 
     Ok(final_values)
 
+}
+
+
+/// Extracts a TOML subtree from the flat `ConfigValues` map under a given prefix.
+///
+/// For example, given:
+/// ```toml
+/// arcella.log.level = "debug"
+/// arcella.log.dir = "/tmp"
+/// arcella.server.port = 8080
+/// ```
+/// Calling `extract_subtree(config, "arcella.log")` returns:
+/// ```toml
+/// level = "debug"
+/// dir = "/tmp"
+/// ```
+///
+/// Nested keys (e.g., `arcella.cache.redis.host`) are converted into nested TOML tables.
+pub fn extract_subtree(config: &ConfigValues, prefix: &str) -> Table {
+    let mut table = Table::new();
+    let prefix_with_dot = format!("{}.", prefix);
+
+    for (key, (value, _)) in config {
+        if key.starts_with(&prefix_with_dot) {
+            let subkey = &key[prefix_with_dot.len()..];
+            if subkey.contains('.') {
+                insert_nested(&mut table, subkey, value.clone());
+            } else {
+                table.insert(subkey.to_string(), toml_value_to_toml(value));
+            }
+        }
+    }
+
+    table
+}
+
+/// Recursively inserts a value into a TOML table using a dot-separated path.
+///
+/// Example: `insert_nested(table, "a.b.c", value)` produces `{ a: { b: { c: value } } }`.
+fn insert_nested(table: &mut Table, path: &str, value: TomlValue) {
+    let parts: Vec<&str> = path.split('.').collect();
+    insert_nested_rec(table, &parts, value);
+}
+
+fn insert_nested_rec(table: &mut Table, parts: &[&str], value: TomlValue) {
+    if parts.len() == 1 {
+        table.insert(parts[0].to_string(), toml_value_to_toml(&value));
+    } else {
+        let key = parts[0].to_string();
+        let entry = table.entry(key).or_insert_with(|| toml::Value::Table(Table::new()));
+        if let toml::Value::Table(ref mut subtable) = entry {
+            insert_nested_rec(subtable, &parts[1..], value);
+        }
+        // Ignore type conflicts for MVP (e.g., if key already exists as non-table)
+    }
+}
+
+/// Converts the internal `TomlValue` enum to `toml::Value`.
+fn toml_value_to_toml(value: &TomlValue) -> toml::Value {
+    match value {
+        TomlValue::String(s) => toml::Value::String(s.clone()),
+        TomlValue::Integer(i) => toml::Value::Integer(*i),
+        TomlValue::Boolean(b) => toml::Value::Boolean(*b),
+        TomlValue::Float(OrderedFloat(f)) => toml::Value::Float(*f),
+        // Fallback for unsupported types (arrays, tables) — should not occur in MVP
+        _ => toml::Value::String(format!("{:?}", value)),
+    }
 }
 
 #[cfg(test)]
@@ -870,6 +922,30 @@ mod tests {
             }
             _ => panic!("Expected ValueError for new key in arcella.server"),
         }
+    }    
+
+    #[test]
+    fn test_extract_subtree() {
+        let mut config = ConfigValues::new();
+        config.insert("arcella.log.level".to_string(), (TomlValue::String("debug".into()), 0));
+        config.insert("arcella.log.dir".to_string(), (TomlValue::String("/tmp".into()), 0));
+        config.insert("arcella.server.port".to_string(), (TomlValue::Integer(8080), 0));
+
+        let subtree = extract_subtree(&config, "arcella.log");
+        assert_eq!(subtree["level"].as_str(), Some("debug"));
+        assert_eq!(subtree["dir"].as_str(), Some("/tmp"));
+        assert!(!subtree.contains_key("port"));
+    }
+
+    #[test]
+    fn test_extract_nested_subtree() {
+        let mut config = ConfigValues::new();
+        config.insert("arcella.cache.redis.host".to_string(), (TomlValue::String("localhost".into()), 0));
+        config.insert("arcella.cache.redis.port".to_string(), (TomlValue::Integer(6379), 0));
+
+        let subtree = extract_subtree(&config, "arcella.cache");
+        assert_eq!(subtree["redis"]["host"].as_str(), Some("localhost"));
+        assert_eq!(subtree["redis"]["port"].as_integer(), Some(6379));
     }    
 
 }
