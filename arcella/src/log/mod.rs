@@ -442,7 +442,7 @@ mod tests {
         // Также должны быть заданы обязательные пути
         config_values.insert("arcella.modules.dir".to_string(), (make_toml_value(modules_dir.to_str().unwrap()), 0));
         config_values.insert("arcella.cache.dir".to_string(), (make_toml_value(cache_dir.to_str().unwrap()), 0));
-        config_values.insert("arcella.alme.socket.path".to_string(), (make_toml_value(socket_path.to_str().unwrap()), 0));
+        config_values.insert("arcella.alme.socket_path".to_string(), (make_toml_value(socket_path.to_str().unwrap()), 0));
 
         // 3. Создаём пустой IntegrityChecker
         let integrity_checker = IntegrityChecker::new(vec![]).expect("Failed to create empty IntegrityChecker");
@@ -454,7 +454,6 @@ mod tests {
             config_dir,
             modules_dir,
             cache_dir,
-            socket_path,
             integrity_checker,
         };
 

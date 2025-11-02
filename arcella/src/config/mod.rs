@@ -111,11 +111,14 @@ pub struct ArcellaConfig {
     /// Directory for cached data.
     pub cache_dir: PathBuf,
 
-    /// Path to the ALME (Arcella Local Management Extensions) Unix socket.
-    pub socket_path: PathBuf,
-
     /// Integrity checker for critical configuration files.
     pub integrity_checker: IntegrityChecker,
+}
+
+impl ArcellaConfig {
+    pub fn extract_path_value(&self,  suffix: &str) -> ArcellaResult<PathBuf> {
+        extract_path_value(&self.config_values, suffix)
+    }
 }
 
 /// Tracks file modification times to detect unauthorized changes after startup.
@@ -362,8 +365,6 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
 
     let cache_dir = extract_path_value(&final_values, "cache.dir")?;
 
-    let socket_path = extract_path_value(&final_values, "alme.socket.path")?;
-
     integrity_checker.check().await?;
 
     Ok((
@@ -373,7 +374,6 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
             config_dir,
             modules_dir,
             cache_dir,
-            socket_path,
             integrity_checker,
         },
         state.warnings,

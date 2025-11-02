@@ -38,7 +38,7 @@ alme_buffer_size = 100
 
 [alme]
 
-socket.path = "alme"
+socket_path = "alme"
 
 [cache]
 

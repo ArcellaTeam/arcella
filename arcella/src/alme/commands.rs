@@ -113,7 +113,6 @@ async fn handle_status(
         "pid": runtime_status.pid,
         "start_time": format!("{}", start_time_rfc3339),
         "uptime": runtime_status.uptime.as_secs(),
-        "socket_path": runtime_guard.config.socket_path.to_string_lossy(),
         "worker_groups": "",
         "modules": "",
     });
