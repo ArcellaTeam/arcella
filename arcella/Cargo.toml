@@ -10,6 +10,8 @@ repository = "https://github.com/ArcellaTeam/arcella"
 arcella-types = { path = "../arcella-types" }
 arcella-fs-utils = { path = "../arcella-fs-utils" }
 arcella-wasmtime = { path = "../arcella-wasmtime" }
+ministore = "0.0.1"
+walmq = "0.0.1"
 wasmtime = "37"
 wasmtime-wasi = "37"
 clap = { version = "4", features = ["derive"] }
