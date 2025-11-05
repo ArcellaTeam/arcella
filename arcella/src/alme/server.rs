@@ -244,14 +244,14 @@ async fn handle_connection(
             Err(e) => {
                 let message = format!("Invalid JSON: {} ", e);
                 let resp = AlmeResponse::error(&message);
-                tracing::debug!("{}", message);
+                tracing::error!("{}", message);
                 send_response(&mut writer, &resp).await?;
                 continue;
             }
         };
         tracing::trace!("Get request: {:?}", request);
 
-        let response = super::commands::dispatch_command(&request.cmd, &request.args, &runtime).await;
+        let response = super::commands::dispatch_command(&request, &runtime).await;
 
         send_response(&mut writer, &response).await?;
 

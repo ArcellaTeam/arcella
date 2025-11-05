@@ -10,10 +10,9 @@
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 use tokio::task::JoinHandle;
-use tokio::fs;
 
 use crate::runtime::ArcellaRuntime;
-use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::error::Result as ArcellaResult;
 
 mod commands;
 mod server;

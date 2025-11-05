@@ -14,15 +14,62 @@
 
 use serde::{Deserialize, Serialize};
 
+/// A high-level, type-safe ALME command.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "cmd", content = "args")]
+pub enum AlmeCommand {
+    /// Ping the server: `cmd = "ping"`, args = {}
+    Ping,
+
+    /// Tail the log of one or all deployments
+    #[serde(rename = "log:tail")]
+    LogTail {
+        #[serde(default)]
+        n: usize,
+    },
+
+    /// Get status of one or all deployments
+    #[serde(rename = "module:status")]
+    Status {
+        #[serde(default)]
+        deployment_id: Option<String>,
+    },
+
+    /// List all deployments
+    #[serde(rename = "module:list")]
+    ModuleList,
+
+    /// Install a module: `cmd = "module:install"`, args = { "path": "..." }
+    #[serde(rename = "module:install")]
+    ModuleInstall {
+        path: String,
+    },
+
+    /// Deploy from file: `cmd = "deploy"`, args = { "file": "..." }
+    #[serde(rename = "module:deploy")]
+    ModuleDeploy {
+        file: String,
+    },
+
+    /// Start a deployment by ID
+    #[serde(rename = "module:start")]
+    ModuleStart {
+        deployment_id: String,
+    },
+
+    /// Stop a deployment by ID
+    #[serde(rename = "module:stop")]
+    ModuleStop {
+        deployment_id: String,
+    },
+
+}
+
 /// An ALME request sent by a client.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AlmeRequest {
-    /// Command name in hierarchical format, e.g., `"ping"`, `"module:list"`, `"log:tail"`.
-    pub cmd: String,
-
-    /// Optional arguments for the command.
-    #[serde(default)]
-    pub args: serde_json::Value,
+     #[serde(flatten)]
+    pub command: AlmeCommand,
 }
 
 /// An ALME response returned by the server.
