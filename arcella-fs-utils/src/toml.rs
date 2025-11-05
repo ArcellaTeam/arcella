@@ -718,7 +718,7 @@ mod tests {
             host = "dev1"
             "#;
 
-            let (config, traversal_result) = parse_and_collect(config_content, &[], 0).unwrap();
+            let (config, _) = parse_and_collect(config_content, &[], 0).unwrap();
 
             // Should produce:
             // clusters = [

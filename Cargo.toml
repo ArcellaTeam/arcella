@@ -1,5 +1,6 @@
 # arcella/Cargo.toml
 [workspace]
+resolver = "2"
 members = [
     "arcella",
     "arcella-cli",
@@ -7,3 +8,35 @@ members = [
     "arcella-fs-utils",
     "arcella-wasmtime",
 ]
+
+[workspace.package]
+publish = false
+authors = ["Alexey Rybakov", "ArcellaTeam"]
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/ArcellaTeam/arcella/"
+
+[workspace.dependencies]
+ministore = "0.1.1"
+#walmq = "0.0.1"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+dirs = "6"
+futures = "0.3.31"
+indexmap = "2.12.0"
+ordered-float = { version = "5.1.0", features = ["serde"]}
+regex = "1.12.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3.23.0"
+time = { version = "0.3.44", features = ["formatting", "std"] }
+thiserror = "2.0.17"
+tokio = { version = "1", features = ["signal", "rt", "net", "io-util", "fs", "macros"] }
+toml = "0.9.8"
+toml_edit = "0.23.7"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "serde"] }
+wasmtime = "38.0"
+wasmtime-wasi = "38"
+wat = "1.239"

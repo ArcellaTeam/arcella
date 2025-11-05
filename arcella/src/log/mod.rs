@@ -458,26 +458,30 @@ mod tests {
         };
 
         // 4. Инициализируем логирование
-        let _guard = init(&config).expect("log::init should succeed");
+        let guard = init(&config).expect("log::init should succeed");
 
-        // 5. Проверяем, что подсистема tracing работает: пишем тестовое сообщение
+         // 5. Проверяем, что подсистема tracing работает: пишем тестовые сообщения
         tracing::info!("Test log message from default config");
+        tracing::debug!("This debug message should not appear in logs");
 
         // 6. Проверяем, что буфер ALME содержит сообщение
         let recent_logs = get_recent_logs(10);
         assert!(!recent_logs.is_empty(), "ALME log buffer should contain logs");
         assert!(recent_logs.iter().any(|line| line.contains("Test log message from default config")));
 
-        // 7. Проверяем, что лог-файл создан и содержит сообщение
+        // 7. Проверяем, что лог-файл создан
         let log_file_path = log_dir.join("arcella.log");
         assert!(log_file_path.exists(), "arcella.log should be created");
 
+        // 8. Закрываем лог файл
+        drop(guard);
+
+        // 9. Проверяем, что сообщения сохранены
         let log_content = std::fs::read_to_string(&log_file_path)
             .expect("Failed to read arcella.log");
         assert!(log_content.contains("Test log message from default config"));
 
-        // 8. Дополнительно: проверим, что уровень "debug" не попал в лог
-        tracing::debug!("This debug message should not appear in logs");
+        // 10. Дополнительно: проверим, что уровень "debug" не попал в лог
         let recent_logs_after_debug = get_recent_logs(10);
         // Поскольку уровень = info, debug-сообщение не должно быть записано
         assert!(!recent_logs_after_debug.iter().any(|line| line.contains("This debug message")));

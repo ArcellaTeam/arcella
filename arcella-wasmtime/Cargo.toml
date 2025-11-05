@@ -2,16 +2,18 @@
 [package]
 name = "arcella-wasmtime"
 version = "0.1.0"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "Wasmtime integration for Arcella component introspection"
-repository = "https://github.com/ArcellaTeam/arcella/"
 
 
 [dependencies]
-arcella-types = { path = "../arcella-types", version = "0.1.0" }
-regex = "1.12.2"
-thiserror = "2.0.17"
-wasmtime = "37"
-wasmtime-wasi = "37"
+arcella-types = { path = "../arcella-types" }
+regex = { workspace = true }
+thiserror = { workspace = true }
+wasmtime = { workspace = true }
+wasmtime-wasi = { workspace = true }
 
 
