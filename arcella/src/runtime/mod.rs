@@ -96,7 +96,7 @@ impl ArcellaRuntime{
     pub async fn install_module_from_path(
         &mut self,
         wasm_path: &PathBuf,
-    ) -> ArcellaResult<()> {
+    ) -> ArcellaResult<usize> {
         /*let component = ComponentManifest::from_component_toml(wasm_path)?
             .ok_or_else(|| ArcellaError::Manifest("component.toml required for WASI modules".into()))?;
         component.validate()?;*/
@@ -104,8 +104,9 @@ impl ArcellaRuntime{
         //let deployment = DeploymentProfile::from_file(wasm_path)?;
         //deployment.validate()?;
 
+        tracing::debug!("Runtime: Installing module from path: {:?}", wasm_path );
 
-        Ok(())
+        Ok(10)
     }
 
     #[cfg(test)]
