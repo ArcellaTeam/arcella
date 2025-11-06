@@ -109,6 +109,36 @@ impl ArcellaRuntime{
         Ok(10)
     }
 
+    pub async fn deploy_module_from_path(
+        &mut self,
+        wasm_path: &PathBuf,
+    ) -> ArcellaResult<usize> {
+
+        tracing::debug!("Runtime: Deploing module from path: {:?}", wasm_path );
+
+        Ok(10)
+    }
+
+    pub async fn module_start(
+        &mut self,
+        deployment_id: &str,
+    ) -> ArcellaResult<String> {
+
+        tracing::debug!("Runtime: Starting module {:?}", deployment_id );
+
+        Ok(format!("Started"))
+    }
+
+    pub async fn module_stop(
+        &mut self,
+        deployment_id: &str,
+    ) -> ArcellaResult<String> {
+
+        tracing::debug!("Runtime: Stoping module {:?}", deployment_id );
+
+        Ok(format!("Stoped"))
+    }
+
     #[cfg(test)]
     pub async fn new_for_tests(config: Arc<ArcellaConfig>) -> ArcellaResult<Self> {
 

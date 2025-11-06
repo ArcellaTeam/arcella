@@ -210,31 +210,81 @@ async fn handle_module_install(
 }
 
 async fn handle_module_deploy(
-    _runtime: &Arc<RwLock<ArcellaRuntime>>,
+    runtime: &Arc<RwLock<ArcellaRuntime>>,
     path: &str,
 ) -> AlmeResponse {
-    if !std::path::Path::new(path).exists() {
+    let path_int = PathBuf::from(path.trim());
+    if !path_int.exists() {
         let message = &format!("Module file {} not found", path);
         tracing::debug!(message);
         return AlmeResponse::error(message);
     }
 
+    let mut runtime_guard = runtime.write().await;
+
+    let module_id = match runtime_guard.deploy_module_from_path(&path_int).await {
+        Ok(id) => id,
+        Err(e) => {
+            let message = format!("Arcella runtime is fault: {} ", e);
+            tracing::error!("{}", message);
+            return AlmeResponse::error(&message)
+        }
+    };
+
+    let data = serde_json::json!({
+        "module_id": module_id
+    });    
+
     tracing::debug!("Command module:deploy is complete");
-    AlmeResponse::error("Module deploy not implemented in v0.2.5")
+    AlmeResponse::success("Module deploy is complete", Some(data))
 }
 
 async fn handle_module_start(
-    _runtime: &Arc<RwLock<ArcellaRuntime>>,
+    runtime: &Arc<RwLock<ArcellaRuntime>>,
     deployment_id: &str,
 ) -> AlmeResponse {
+
+    let mut runtime_guard = runtime.write().await;
+
+    let module_status = match runtime_guard.module_start(deployment_id).await {
+        Ok(status) => status,
+        Err(e) => {
+            let message = format!("Arcella runtime is fault: {} ", e);
+            tracing::error!("{}", message);
+            return AlmeResponse::error(&message)
+        }
+    };
+
+    let data = serde_json::json!({
+        "deployment_id": deployment_id,
+        "status": module_status,
+    });    
+
     tracing::debug!("Command module:start is complete");
-    AlmeResponse::error("Module start not implemented in v0.2.5")
+    AlmeResponse::success("Module start is complete", Some(data))
 }
 
 async fn handle_module_stop(
-    _runtime: &Arc<RwLock<ArcellaRuntime>>,
+    runtime: &Arc<RwLock<ArcellaRuntime>>,
     deployment_id: &str,
 ) -> AlmeResponse {
+
+    let mut runtime_guard = runtime.write().await;
+
+    let module_status = match runtime_guard.module_stop(deployment_id).await {
+        Ok(status) => status,
+        Err(e) => {
+            let message = format!("Arcella runtime is fault: {} ", e);
+            tracing::error!("{}", message);
+            return AlmeResponse::error(&message)
+        }
+    };
+
+    let data = serde_json::json!({
+        "deployment_id": deployment_id,
+        "status": module_status,
+    });    
+
     tracing::debug!("Command module:stop is complete");
-    AlmeResponse::error("Module stop not implemented in v0.2.5")
+    AlmeResponse::success("Module stop is complete", Some(data))
 }
