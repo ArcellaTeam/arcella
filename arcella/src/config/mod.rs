@@ -108,12 +108,6 @@ pub struct ArcellaConfig {
     /// Directory containing `arcella.toml` and included configs.
     pub config_dir: PathBuf,
 
-    /// Directory for runtime modules.
-    pub modules_dir: PathBuf,
-
-    /// Directory for cached data.
-    pub cache_dir: PathBuf,
-
     /// Integrity checker for critical configuration files.
     pub integrity_checker: IntegrityChecker,
 }
@@ -363,10 +357,6 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
     // 10. Sort keys for deterministic output
     final_values.sort_keys();
 
-    // 11. Extract required paths from merged config
-    let modules_dir = extract_path_value(&final_values, "modules.dir")?;
-
-    let cache_dir = extract_path_value(&final_values, "cache.dir")?;
 
     integrity_checker.check().await?;
 
@@ -375,8 +365,6 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
             config_values: final_values,
             base_dir,
             config_dir,
-            modules_dir,
-            cache_dir,
             integrity_checker,
         },
         state.warnings,

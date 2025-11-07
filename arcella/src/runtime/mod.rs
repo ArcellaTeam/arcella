@@ -8,13 +8,19 @@
 // except according to those terms.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{PathBuf},
     sync::Arc,
     time::{Duration, Instant}
 };
 use time::OffsetDateTime;
 use tokio::sync::{RwLock, broadcast};
+
+use wasmtime::{
+    Engine,
+};
+
+use ministate::StateManager;
 
 use arcella_types::{
     manifest::ComponentManifest,
@@ -23,7 +29,13 @@ use arcella_types::{
 use crate::{storage, cache};
 use crate::config::ArcellaConfig;
 use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::manifest::ComponentBundle;
 
+mod state;
+use state::*;
+
+mod mutators;
+use mutators::*;
 
 struct ArcellaRuntimeEnvironment {
     pub pid: u32,
@@ -42,9 +54,7 @@ pub struct ArcellaRuntime {
     pub storage: Arc<storage::StorageManager>,
     pub cache: Arc<cache::ModuleCache>,
     pub environment: Arc<RwLock<ArcellaRuntimeEnvironment>>,
-    //pub modules: HashMap<String, ModuleManifest>, // key = name@version
-    // Позже: instances, engine и т.д.
-
+    pub state_manager: Arc<StateManager<ArcellaState, ArcellaMutation>>,
 }
 
 impl ArcellaRuntime{
@@ -60,12 +70,15 @@ impl ArcellaRuntime{
             start_utc: OffsetDateTime::now_utc(),
         };
 
+        let state_dir = storage.modules_dir.clone();
+        let state_manager = StateManager::open(&state_dir, "arcella.wal.jsonl").await?;
+
         let runtime = Self {
             config,
             storage,
             cache,
             environment: Arc::new(RwLock::new(env)),
-            //modules: HashMap::new(),
+            state_manager: Arc::new(state_manager),
         };
 
         Ok(runtime)
@@ -97,14 +110,47 @@ impl ArcellaRuntime{
         &mut self,
         wasm_path: &PathBuf,
     ) -> ArcellaResult<usize> {
-        /*let component = ComponentManifest::from_component_toml(wasm_path)?
-            .ok_or_else(|| ArcellaError::Manifest("component.toml required for WASI modules".into()))?;
-        component.validate()?;*/
 
-        //let deployment = DeploymentProfile::from_file(wasm_path)?;
-        //deployment.validate()?;
+        // 1. Валидация файла
+        if !wasm_path.exists() {
+            let error = ArcellaError::IoWithPath {
+                source: std::io::ErrorKind::NotFound.into(),
+                path: wasm_path.clone(),
+            };
+            tracing::error!("{}", error);
+            return Err(error);
+        }
 
-        tracing::debug!("Runtime: Installing module from path: {:?}", wasm_path );
+        if wasm_path.extension().map_or(true, |ext| ext != "wasm") {
+            let error = ArcellaError::RuntimeError(
+                "Path is not a .wasm file".into(),
+            );
+            tracing::error!("{}", error);
+            return Err(error);
+        }        
+        tracing::debug!("File {:?} is wasm", wasm_path );
+
+        let engine = Engine::default();
+
+        let bundle = match ComponentBundle::from_wasm_path(&engine, wasm_path) {
+            Ok(boundle) => boundle,
+            Err(e) => {
+                tracing::error!("{}", e);
+                return Err(e);
+            }
+        };
+
+        let module_id = bundle.component.id();
+
+        /*let mutator = InstallModule {
+
+        };
+        
+        self.state_manager
+            .apply(ArcellaMutation::InstallModule(mutator))
+            .await?;*/
+
+        tracing::debug!("Runtime: Installing module {:?}", module_id );
 
         Ok(10)
     }

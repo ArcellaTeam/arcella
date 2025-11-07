@@ -20,6 +20,7 @@ use tokio::task::JoinError;
 
 use arcella_wasmtime::error::ArcellaWasmtimeError;
 use arcella_fs_utils::error::ArcellaUtilsError;
+use ministate::MiniStateError;
 
 /// The root error type for all Arcella-specific failures.
 #[derive(Error, Debug)]
@@ -63,7 +64,10 @@ pub enum ArcellaError {
     ArcellaWasmtimeError (#[from] ArcellaWasmtimeError),    
 
     #[error("Arcella Wasmtime error: {0}")]
-    ArcellaUtilsError (#[from] ArcellaUtilsError),    
+    ArcellaUtilsError (#[from] ArcellaUtilsError),  
+    
+    #[error("MiniState error: {0}")]
+    MiniStateError (#[from] MiniStateError), 
 
 }
 

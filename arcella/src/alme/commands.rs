@@ -105,9 +105,8 @@ async fn handle_status(
     let runtime_status = match runtime_guard.status(){
         Ok(status) => status,
         Err(e) => {
-            let message = format!("Arcella runtime is fault: {} ", e);
-            tracing::error!("{}", message);
-            return AlmeResponse::error(&message)
+            tracing::error!("{}", e);
+            return AlmeResponse::error(&e.to_string())
         }
     };
 
@@ -183,21 +182,13 @@ async fn handle_module_install(
     runtime: &Arc<RwLock<ArcellaRuntime>>,
     path: &str,
 ) -> AlmeResponse {
-    let path_int = PathBuf::from(path.trim());
-    if !path_int.exists() {
-        let message = &format!("Module file {} not found", path);
-        tracing::debug!(message);
-        return AlmeResponse::error(message);
-    }
-
     let mut runtime_guard = runtime.write().await;
 
+    let path_int = PathBuf::from(path.trim());
     let module_id = match runtime_guard.install_module_from_path(&path_int).await {
         Ok(id) => id,
         Err(e) => {
-            let message = format!("Arcella runtime is fault: {} ", e);
-            tracing::error!("{}", message);
-            return AlmeResponse::error(&message)
+            return AlmeResponse::error(&e.to_string())
         }
     };
 
@@ -213,21 +204,14 @@ async fn handle_module_deploy(
     runtime: &Arc<RwLock<ArcellaRuntime>>,
     path: &str,
 ) -> AlmeResponse {
-    let path_int = PathBuf::from(path.trim());
-    if !path_int.exists() {
-        let message = &format!("Module file {} not found", path);
-        tracing::debug!(message);
-        return AlmeResponse::error(message);
-    }
-
     let mut runtime_guard = runtime.write().await;
 
+    let path_int = PathBuf::from(path.trim());
     let module_id = match runtime_guard.deploy_module_from_path(&path_int).await {
         Ok(id) => id,
         Err(e) => {
-            let message = format!("Arcella runtime is fault: {} ", e);
-            tracing::error!("{}", message);
-            return AlmeResponse::error(&message)
+            tracing::error!("{}", e);
+            return AlmeResponse::error(&e.to_string())
         }
     };
 
@@ -249,9 +233,8 @@ async fn handle_module_start(
     let module_status = match runtime_guard.module_start(deployment_id).await {
         Ok(status) => status,
         Err(e) => {
-            let message = format!("Arcella runtime is fault: {} ", e);
-            tracing::error!("{}", message);
-            return AlmeResponse::error(&message)
+            tracing::error!("{}", e);
+            return AlmeResponse::error(&e.to_string())
         }
     };
 
@@ -274,9 +257,8 @@ async fn handle_module_stop(
     let module_status = match runtime_guard.module_stop(deployment_id).await {
         Ok(status) => status,
         Err(e) => {
-            let message = format!("Arcella runtime is fault: {} ", e);
-            tracing::error!("{}", message);
-            return AlmeResponse::error(&message)
+            tracing::error!("{}", e);
+            return AlmeResponse::error(&e.to_string())
         }
     };
 

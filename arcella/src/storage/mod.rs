@@ -14,8 +14,6 @@ use crate::config::ArcellaConfig;
 use crate::error::{ArcellaError, Result as ArcellaResult};
 
 pub struct StorageManager {
-    pub base_dir: PathBuf,
-    pub config_dir: PathBuf,
     pub modules_dir: PathBuf,
     pub cache_dir: PathBuf,
 }
@@ -25,14 +23,16 @@ impl StorageManager {
         config: &Arc<ArcellaConfig>,
     ) -> ArcellaResult<Self> {
 
-        let base_dir = config.base_dir.clone();//.unwrap_or_else(|| PathBuf::from("."));
-        let config_dir = config.config_dir.clone();//.unwrap_or_else(|| base_dir.join("config"));
-        let modules_dir = config.modules_dir.clone();//.unwrap_or_else(|| base_dir.join("modules"));
-        let cache_dir = config.cache_dir.clone();//.unwrap_or_else(|| base_dir.join("cache"));
+        let modules_dir = config.extract_path_value("modules.dir")?;
+        let cache_dir = config.extract_path_value("cache.dir")?;
+
+        let modules_dir = config.base_dir.join(modules_dir);
+        let cache_dir = config.base_dir.join(cache_dir);
+
+        tracing::debug!("Modules directory path: {:?}", modules_dir );
+        tracing::debug!("Cache directory path: {:?}", cache_dir );
 
         let manager = Self {
-            base_dir,
-            config_dir,
             modules_dir,
             cache_dir,
         };
@@ -43,23 +43,6 @@ impl StorageManager {
     }
 
     async fn ensure_directories(&self) -> ArcellaResult<()> {
-        if !self.base_dir.exists() {
-            tokio::fs::create_dir_all(&self.base_dir).await?;
-            tracing::info!("Created base directory: {:?}", self.base_dir);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mut perms = tokio::fs::metadata(&self.base_dir).await?.permissions();
-                perms.set_mode(0o700);
-                tokio::fs::set_permissions(&self.base_dir, perms).await?;
-                tracing::info!("Set permissions for base directory: {:?}", self.base_dir);
-            }
-        }
-
-        if !self.config_dir.exists() {
-            tokio::fs::create_dir_all(&self.config_dir).await?;
-            tracing::info!("Created config directory: {:?}", self.config_dir);
-        }
 
         if !self.modules_dir.exists() {
             tokio::fs::create_dir_all(&self.modules_dir).await?;
