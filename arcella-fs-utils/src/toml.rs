@@ -46,7 +46,7 @@ use toml_edit::{ArrayOfTables, DocumentMut, InlineTable, Item as TomlEditItem, T
 
 use arcella_types::config::{ConfigValues, Value as TomlValue};
 
-use crate::error::{ArcellaUtilsError, Result as ArcellaUtilsResult};
+use crate::{ArcellaUtilsError, ArcellaUtilsResult};
 use crate::types::*;
 
 /// Key name used to identify file inclusion directives in TOML.

@@ -29,7 +29,7 @@ pub mod config_loader;
 pub use config_loader::*;
 
 pub mod error;
-use crate::error::{ArcellaUtilsError, Result as ArcellaUtilsResult};
+pub use crate::error::{ArcellaUtilsError, Result as ArcellaUtilsResult};
 
 pub mod toml;
 
