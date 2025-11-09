@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 
 use crate::{
     ArcellaTypeError,
-    Result,
+    ArcellaTypeResult,
 };
 
 use crate::spec::ComponentItemSpec;
@@ -181,7 +181,7 @@ impl ComponentManifest {
     /// - Capability feasibility (runtime responsibility).
     ///
     /// Returns `Ok(())` if valid, or a descriptive error otherwise.
-    pub fn validate(&self) -> Result<()> {
+    pub fn validate(&self) -> ArcellaTypeResult<()> {
         if self.name.is_empty() {
             return Err(ArcellaTypeError::Manifest("Component name must not be empty".into()));
         }

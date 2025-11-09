@@ -13,5 +13,5 @@ pub mod error;
 pub mod manifest;
 pub mod spec;
 
-pub use error::{ArcellaTypeError, Result};
+pub use error::{ArcellaTypeError, Result as ArcellaTypeResult};
 pub use flexicon::adaptive::FromName;
