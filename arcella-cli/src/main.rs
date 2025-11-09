@@ -78,7 +78,18 @@ async fn send_alme_request(
     socket_path: &PathBuf,
     request: AlmeRequest,
 ) -> anyhow::Result<AlmeResponse> {
-    let stream = UnixStream::connect(socket_path).await?;
+    let stream = match UnixStream::connect(socket_path).await {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            anyhow::bail!(
+                "ALME socket not found at {}. Is Arcella running?",
+                socket_path.display()
+            );
+        }
+        Err(e) => {
+            anyhow::bail!("Failed to connect to ALME server: {}", e);
+        }
+    };
     let (reader, mut writer) = tokio::io::split(stream);
     let mut reader = BufReader::new(reader);
 
@@ -203,7 +214,7 @@ async fn handle_command(cmd: Commands) -> anyhow::Result<()> {
             eprintln!("Interactive shell not implemented yet (use single commands)");
             std::process::exit(1);
         },
-        _ => {}
+        //_ => {}
     }
     Ok(())
 }
