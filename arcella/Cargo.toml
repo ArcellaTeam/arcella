@@ -1,6 +1,6 @@
 [package]
 name = "arcella"
-version = "0.2.4"
+version = "0.2.5"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,7 +10,7 @@ repository.workspace = true
 arcella-types = { path = "../arcella-types" }
 arcella-fs-utils = { path = "../arcella-fs-utils" }
 arcella-wasmtime = { path = "../arcella-wasmtime" }
-ministore = { workspace = true }
+ministate = { workspace = true }
 #walmq = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
@@ -20,6 +20,7 @@ ordered-float = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true }
 time = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -34,6 +35,5 @@ wat = { workspace = true }
 name = "integration_tests"
 
 [dev-dependencies]
-tempfile = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 wasmtime-wasi = { workspace = true }

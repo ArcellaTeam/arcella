@@ -17,7 +17,10 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/ArcellaTeam/arcella/"
 
 [workspace.dependencies]
-ministore = "0.1.1"
+flexicon = "0.1.0"
+ministore = "0.1.3"
+minisnap = "0.1.1"
+ministate = "0.1.1"
 #walmq = "0.0.1"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }

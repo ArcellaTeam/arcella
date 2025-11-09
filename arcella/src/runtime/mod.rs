@@ -8,13 +8,22 @@
 // except according to those terms.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{PathBuf},
     sync::Arc,
     time::{Duration, Instant}
 };
 use time::OffsetDateTime;
-use tokio::sync::{RwLock, broadcast};
+use tokio::{
+    fs,
+    sync::{RwLock, broadcast},
+};
+
+use wasmtime::{
+    Engine,
+};
+
+use ministate::StateManager;
 
 use arcella_types::{
     manifest::ComponentManifest,
@@ -23,7 +32,16 @@ use arcella_types::{
 use crate::{storage, cache};
 use crate::config::ArcellaConfig;
 use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::manifest::ComponentBundle;
 
+mod state;
+use state::*;
+
+mod mutators;
+use mutators::*;
+
+mod install;
+use install::*;
 
 struct ArcellaRuntimeEnvironment {
     pub pid: u32,
@@ -42,9 +60,7 @@ pub struct ArcellaRuntime {
     pub storage: Arc<storage::StorageManager>,
     pub cache: Arc<cache::ModuleCache>,
     pub environment: Arc<RwLock<ArcellaRuntimeEnvironment>>,
-    //pub modules: HashMap<String, ModuleManifest>, // key = name@version
-    // Позже: instances, engine и т.д.
-
+    pub state_manager: Arc<StateManager<ArcellaState, ArcellaMutation>>,
 }
 
 impl ArcellaRuntime{
@@ -60,12 +76,15 @@ impl ArcellaRuntime{
             start_utc: OffsetDateTime::now_utc(),
         };
 
+        let metadata_dir = storage.metadata_dir.clone();
+        let state_manager = StateManager::open(&metadata_dir, "arcella.wal.jsonl").await?;
+
         let runtime = Self {
             config,
             storage,
             cache,
             environment: Arc::new(RwLock::new(env)),
-            //modules: HashMap::new(),
+            state_manager: Arc::new(state_manager),
         };
 
         Ok(runtime)
@@ -96,16 +115,90 @@ impl ArcellaRuntime{
     pub async fn install_module_from_path(
         &mut self,
         wasm_path: &PathBuf,
-    ) -> ArcellaResult<()> {
-        /*let component = ComponentManifest::from_component_toml(wasm_path)?
-            .ok_or_else(|| ArcellaError::Manifest("component.toml required for WASI modules".into()))?;
-        component.validate()?;*/
+    ) -> ArcellaResult<String> {
+        tracing::info!("Starting installation from: {:?}", wasm_path);
 
-        //let deployment = DeploymentProfile::from_file(wasm_path)?;
-        //deployment.validate()?;
+        // 1. Validate input package structure
+        let validated = validate_install_package(wasm_path).await?;
+        tracing::debug!("Package {:?} validated", wasm_path);
 
+        // 2. Stage into anonymous temp directory
+        let staged = prepare_install_package_in_temp(&self.storage, validated).await?;
+        tracing::debug!("Package staged to: {:?}", staged.package_dir);   
 
-        Ok(())
+        // 3. Parse to obtain module_id
+        let engine = wasmtime::Engine::default();
+        let bundle = if let Some(ref toml) = staged.component_toml_path {
+            ComponentBundle::from_wasm_and_toml(&engine, &staged.wasm_path, toml)?
+        } else {
+            ComponentBundle::from_wasm_path(&engine, &staged.wasm_path)?
+        };
+        let module_id = bundle.component.id();
+        tracing::info!("Parsed module ID: {}", module_id);
+
+        // 4. Check for duplicates (state + disk)
+        let current_state = self.state_manager.snapshot().await;
+        check_module_not_installed(
+            &current_state,
+            &self.storage.modules_dir,
+            &module_id,
+        ).await?;
+        tracing::debug!("Module ID is unique");
+
+        // 5. Install files to permanent storage
+        install_module_files_to_storage(
+            &staged,
+            &self.storage.modules_dir,
+            &module_id,
+        ).await?;
+        tracing::debug!("Files installed to modules directory");
+
+        // 6. Record in WAL state
+        let mutator = InstallModule {
+            manifest: bundle.component.clone(),
+        };
+        self.state_manager
+            .apply(ArcellaMutation::InstallModule(mutator))
+            .await?;
+        tracing::info!("Module installed and recorded in state: {}", module_id);
+
+        // 7. Cleanup staging directory
+        if let Some(ref staging_dir) = staged.package_dir {
+            fs::remove_dir_all(staging_dir).await.ok();
+            tracing::debug!("Staging directory cleaned up");
+        }
+
+        Ok(module_id)
+    }
+
+    pub async fn deploy_module_from_path(
+        &mut self,
+        wasm_path: &PathBuf,
+    ) -> ArcellaResult<usize> {
+
+        tracing::debug!("Runtime: Deploing module from path: {:?}", wasm_path );
+
+        Ok(10)
+    }
+
+    pub async fn module_start(
+        &mut self,
+        deployment_id: &str,
+    ) -> ArcellaResult<String> {
+
+        tracing::debug!("Runtime: Starting module {:?}", deployment_id );
+
+        Ok(format!("Started"))
+    }
+
+    pub async fn module_stop(
+        &mut self,
+        deployment_id: &str,
+    ) -> ArcellaResult<String> {
+
+        tracing::debug!("Runtime: Stoping module {:?}", deployment_id );
+
+        Ok(format!("Stoped"))
     }
 
     #[cfg(test)]

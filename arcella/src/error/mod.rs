@@ -18,8 +18,11 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use arcella_wasmtime::error::ArcellaWasmtimeError;
-use arcella_fs_utils::error::ArcellaUtilsError;
+use ministate::MiniStateError;
+
+use arcella_fs_utils::ArcellaUtilsError;
+use arcella_types::ArcellaTypeError;
+use arcella_wasmtime::ArcellaWasmtimeError;
 
 /// The root error type for all Arcella-specific failures.
 #[derive(Error, Debug)]
@@ -37,6 +40,12 @@ pub enum ArcellaError {
     IoWithPath {
         source: std::io::Error,
         path: PathBuf,
+    },
+
+    /// Invalid argument provided.
+    #[error("Invalid argument: {message}")]
+    InvalidArgument {
+        message: String,
     },
 
     /// Failed to parse WebAssembly Text Format (`.wat`).
@@ -59,11 +68,24 @@ pub enum ArcellaError {
     #[error("Runtime error: {0}")]
     RuntimeError(String),
 
+    /// Module already installed.
+    #[error("Module already installed: {0}")]
+    ModuleAlreadyInstalled(String),
+
+    #[error("Module directory already exists on disk: {0}")]
+    ModuleDirAlreadyExists(String),
+
     #[error("Arcella Wasmtime error: {0}")]
     ArcellaWasmtimeError (#[from] ArcellaWasmtimeError),    
 
     #[error("Arcella Wasmtime error: {0}")]
-    ArcellaUtilsError (#[from] ArcellaUtilsError),    
+    ArcellaUtilsError (#[from] ArcellaUtilsError),  
+
+    #[error("Arcella Wasmtime error: {0}")]
+    ArcellaTypeError (#[from] ArcellaTypeError),
+    
+    #[error("MiniState error: {0}")]
+    MiniStateError (#[from] MiniStateError), 
 
 }
 

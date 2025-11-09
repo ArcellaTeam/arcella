@@ -19,6 +19,5 @@ pub mod error;
 mod from_wasmtime;
 pub mod manifest;
 
-pub use error::{ArcellaWasmtimeError, Result};
+pub use error::{ArcellaWasmtimeError, Result as ArcellaWasmtimeResult};
 pub use from_wasmtime::{ComponentItemSpecExt, ComponentTypeExt};
-pub use manifest::ComponentManifestExt;

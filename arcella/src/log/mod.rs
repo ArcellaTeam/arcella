@@ -452,8 +452,6 @@ mod tests {
             config_values,
             base_dir,
             config_dir,
-            modules_dir,
-            cache_dir,
             integrity_checker,
         };
 

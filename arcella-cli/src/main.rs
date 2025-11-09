@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 
-use arcella_types::alme::proto::{AlmeRequest, AlmeResponse};
+use arcella_types::alme::proto::{AlmeCommand, AlmeRequest, AlmeResponse};
 
 /// Arcella CLI — управление runtime'ом через ALME
 #[derive(Parser)]
@@ -26,8 +26,7 @@ struct Cli {
 enum Commands {
     /// Проверить доступность ALME
     Ping,
-    /// Получить статус runtime'а
-    Status,
+
     /// Вывести последние N строк лога
     #[command(name = "log:tail")]
     LogTail {
@@ -35,9 +34,42 @@ enum Commands {
         #[arg(short, long, default_value_t = 100)]
         n: usize,
     },
+
+    /// Получить статус runtime'а
+    Status,
+
     /// Список установленных модулей
     #[command(name = "module:list")]
     ModuleList,
+
+    /// Установить модуль из .wasm-файла
+    #[command(name = "module:install")]
+    ModuleInstall {
+        /// Путь к .wasm-файлу или директории с компонентом
+        path: PathBuf,
+    },
+
+    /// Развернуть модуль по спецификации
+    #[command(name = "module:deploy")]
+    ModuleDeploy {
+        /// Путь к .deployment.toml файлу
+        file: PathBuf,
+    },
+
+    /// Запустить развёртывание
+    #[command(name = "module:start")]
+    ModuleStart {
+        /// Идентификатор развёртывания (например, web-http-logger-v1)
+        deployment_id: String,
+    },
+
+    /// Остановить развёртывание
+    #[command(name = "module:stop")]
+    ModuleStop {
+        /// Идентификатор развёртывания
+        deployment_id: String,
+    },
+
     /// Интерактивная консоль
     Shell,
 }
@@ -46,7 +78,18 @@ async fn send_alme_request(
     socket_path: &PathBuf,
     request: AlmeRequest,
 ) -> anyhow::Result<AlmeResponse> {
-    let stream = UnixStream::connect(socket_path).await?;
+    let stream = match UnixStream::connect(socket_path).await {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            anyhow::bail!(
+                "ALME socket not found at {}. Is Arcella running?",
+                socket_path.display()
+            );
+        }
+        Err(e) => {
+            anyhow::bail!("Failed to connect to ALME server: {}", e);
+        }
+    };
     let (reader, mut writer) = tokio::io::split(stream);
     let mut reader = BufReader::new(reader);
 
@@ -71,44 +114,46 @@ fn get_default_socket_path() -> PathBuf {
     base.join("alme")
 }
 
+async fn exec_alme_cmd<F>(
+    socket_path: &PathBuf,
+    build_request: F,
+    success_msg: &str,
+) -> anyhow::Result<()>
+where
+    F: Fn() -> AlmeRequest,
+{
+    let req = build_request();
+    let resp = send_alme_request(socket_path, req).await?;
+    if resp.success {
+        if success_msg != "" {
+            println!("{}", success_msg);
+        }
+        if resp.message != "" {
+            println!("{}", resp.message);
+        }
+        if let Some(data) = resp.data {
+            println!("Details: {:#}", data);
+        }
+    } else {
+        eprintln!("Error: {}", resp.message);
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
 async fn handle_command(cmd: Commands) -> anyhow::Result<()> {
     let socket_path = get_default_socket_path();
 
     match cmd {
         Commands::Ping => {
-            let req = AlmeRequest {
-                cmd: "ping".to_string(),
-                args: serde_json::Value::Null,
-            };
-            let resp = send_alme_request(&socket_path, req).await?;
-            if resp.success {
-                println!("pong");
-            } else {
-                eprintln!("Error: {}", resp.message);
-                std::process::exit(1);
-            }
-        },
-        Commands::Status => {
-            let req = AlmeRequest {
-                cmd: "status".to_string(),
-                args: serde_json::Value::Null,
-            };
-            let resp = send_alme_request(&socket_path, req).await?;
-            if resp.success {
-                println!("Status: {}", resp.message);
-                if let Some(data) = resp.data {
-                    println!("Data: {:#}", data);
-                }
-            } else {
-                eprintln!("Error: {}", resp.message);
-                std::process::exit(1);
-            }
-        },
+            exec_alme_cmd(&socket_path, || AlmeRequest { 
+                command: AlmeCommand::Ping 
+            }, "").await?;
+        }
+
         Commands::LogTail { n } => {
-            let args = serde_json::json!({ "n": n });
             let req = AlmeRequest {
-                cmd: "log:tail".to_string(),
-                args,
+                command: AlmeCommand::LogTail { n }
             };
             let resp = send_alme_request(&socket_path, req).await?;
             if resp.success {
@@ -125,22 +170,46 @@ async fn handle_command(cmd: Commands) -> anyhow::Result<()> {
                 eprintln!("Error: {}", resp.message);
                 std::process::exit(1);
             }
-        },
+        }
+
+        Commands::Status => {
+            exec_alme_cmd(&socket_path, || AlmeRequest {
+                command: AlmeCommand::Status { deployment_id: None }
+            }, "").await?;
+        }
+
         Commands::ModuleList => {
-            let req = AlmeRequest {
-                cmd: "module:list".to_string(),
-                args: serde_json::Value::Null,
-            };
-            let resp = send_alme_request(&socket_path, req).await?;
-            if resp.success {
-                if let Some(data) = resp.data {
-                    println!("{:#}", data);
-                }
-            } else {
-                eprintln!("Error: {}", resp.message);
-                std::process::exit(1);
-            }
-        },
+            exec_alme_cmd(&socket_path, || AlmeRequest {
+                command: AlmeCommand::ModuleList
+            }, "").await?;
+        }
+
+        Commands::ModuleInstall { path } => {
+            let path = path.to_string_lossy().into_owned();
+            exec_alme_cmd(&socket_path, || AlmeRequest {
+                command: AlmeCommand::ModuleInstall { path: path.clone() }
+            }, "").await?;
+        }
+
+        Commands::ModuleDeploy { file } => {
+            let file = file.to_string_lossy().into_owned();
+            exec_alme_cmd(&socket_path, || AlmeRequest {
+                command: AlmeCommand::ModuleDeploy { file: file.clone() }
+            }, "").await?;
+        }
+
+        Commands::ModuleStart { deployment_id } => {
+            exec_alme_cmd(&socket_path, || AlmeRequest {
+                command: AlmeCommand::ModuleStart { deployment_id: deployment_id.clone() }
+            }, "").await?;
+        }
+
+        Commands::ModuleStop { deployment_id } => {
+            exec_alme_cmd(&socket_path, || AlmeRequest {
+                command: AlmeCommand::ModuleStop { deployment_id: deployment_id.clone() }
+            }, "").await?;
+        }
+
         Commands::Shell => {
             eprintln!("Interactive shell not implemented yet (use single commands)");
             std::process::exit(1);

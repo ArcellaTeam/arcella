@@ -34,8 +34,6 @@ alme_buffer_size = 100
 
 [log.internal]
 
-"arcella::alme" = "info"
-
 [alme]
 
 socket_path = "alme"
@@ -47,3 +45,7 @@ dir = "cache"
 [modules]
 
 dir = "modules"
+
+[metadata]
+
+dir = "metadata"

@@ -1,4 +1,4 @@
-// arcella/arcella/src/alme/command.rs
+// arcella/arcella/src/alme/commands.rs
 //
 // Copyright (c) 2025 Arcella Team
 //
@@ -18,10 +18,11 @@
 //! for every valid incoming request.
 
 use serde_json::Value;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use arcella_types::alme::proto::AlmeResponse;
+use arcella_types::alme::proto::{AlmeCommand, AlmeRequest, AlmeResponse};
 
 use crate::log;
 use crate::runtime::ArcellaRuntime;
@@ -44,17 +45,21 @@ use crate::runtime::ArcellaRuntime;
 ///
 /// An [`AlmeResponse`] indicating success or failure, optionally carrying structured data.
 pub async fn dispatch_command(
-    cmd: &str,
-    args: &Value,
+    request: &AlmeRequest,
     runtime: &Arc<RwLock<ArcellaRuntime>>,
 ) -> AlmeResponse {
-    match cmd {
-        "ping" => handle_ping(),
-        "status" => handle_status(runtime).await,
-        "log:tail" => handle_log_tail(args).await,
-        "module:list" => handle_module_list(runtime).await,
+    tracing::debug!("Executing command: {:?}", request.command);
+    match &request.command {
+        AlmeCommand::Ping => handle_ping(),
+        AlmeCommand::Status { deployment_id } => handle_status(runtime).await,
+        AlmeCommand::LogTail { n } => handle_log_tail(*n).await,
+        AlmeCommand::ModuleList => handle_module_list(runtime).await,
+        AlmeCommand::ModuleInstall { path } => handle_module_install(runtime, path).await,
+        AlmeCommand::ModuleDeploy { file } => handle_module_deploy(runtime, file).await,
+        AlmeCommand::ModuleStart { deployment_id } => handle_module_start(runtime, deployment_id).await,
+        AlmeCommand::ModuleStop { deployment_id } => handle_module_stop(runtime, deployment_id).await,
         // ... other command
-        _ => AlmeResponse::error(&format!("Unknown command: {}", cmd)),
+        _ => AlmeResponse::error(&format!("Unknown command: {:?}", request.command.clone())),
     }
 }
 
@@ -67,6 +72,7 @@ pub async fn dispatch_command(
 ///
 /// A successful [`AlmeResponse`] with message `"pong"` and no data.
 fn handle_ping() -> AlmeResponse {
+    tracing::debug!("Command ping received");
     AlmeResponse::success("pong", None)
 }
 
@@ -99,9 +105,8 @@ async fn handle_status(
     let runtime_status = match runtime_guard.status(){
         Ok(status) => status,
         Err(e) => {
-            let message = format!("Arcella runtime is fault: {} ", e);
-            tracing::debug!("{}", message);
-            return AlmeResponse::error(&message)
+            tracing::error!("{}", e);
+            return AlmeResponse::error(&e.to_string())
         }
     };
 
@@ -117,6 +122,7 @@ async fn handle_status(
         "modules": "",
     });
 
+    tracing::debug!("Command status received");
     AlmeResponse::success("Arcella runtime is active", Some(data))
 
 }
@@ -136,11 +142,7 @@ async fn handle_status(
 /// A successful [`AlmeResponse`] containing a JSON object with a `"lines"` array
 /// of log strings (most recent first). Returns an empty array if the buffer is
 /// disabled or uninitialized.
-async fn handle_log_tail(args: &Value) -> AlmeResponse {
-    let n = args.get("n")
-        .and_then(|v| v.as_u64())
-        .map(|n| n as usize)
-        .unwrap_or(100); // default 100 lines
+async fn handle_log_tail(n: usize) -> AlmeResponse {
 
     let lines = log::get_recent_logs(n);
 
@@ -148,6 +150,7 @@ async fn handle_log_tail(args: &Value) -> AlmeResponse {
         "lines": lines
     });
 
+    tracing::debug!("Command log:tail received");
     AlmeResponse::success("Log tail retrieved", Some(data))
 }
 
@@ -171,6 +174,99 @@ async fn handle_module_list(
     _runtime: &Arc<RwLock<ArcellaRuntime>>,
 ) -> AlmeResponse {
     // TODO: реализовать
+    tracing::debug!("Command module:list received");
     AlmeResponse::success("Module list", Some(serde_json::json!([])))
 }
 
+async fn handle_module_install(
+    runtime: &Arc<RwLock<ArcellaRuntime>>,
+    path: &str,
+) -> AlmeResponse {
+    let mut runtime_guard = runtime.write().await;
+
+    let path_int = PathBuf::from(path.trim());
+    let module_id = match runtime_guard.install_module_from_path(&path_int).await {
+        Ok(id) => id,
+        Err(e) => {
+            return AlmeResponse::error(&e.to_string())
+        }
+    };
+
+    let data = serde_json::json!({
+        "module_id": module_id
+    });    
+
+    tracing::debug!("Command module:install is complete");
+    AlmeResponse::success("Module install is complete", Some(data))
+}
+
+async fn handle_module_deploy(
+    runtime: &Arc<RwLock<ArcellaRuntime>>,
+    path: &str,
+) -> AlmeResponse {
+    let mut runtime_guard = runtime.write().await;
+
+    let path_int = PathBuf::from(path.trim());
+    let module_id = match runtime_guard.deploy_module_from_path(&path_int).await {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("{}", e);
+            return AlmeResponse::error(&e.to_string())
+        }
+    };
+
+    let data = serde_json::json!({
+        "module_id": module_id
+    });    
+
+    tracing::debug!("Command module:deploy is complete");
+    AlmeResponse::success("Module deploy is complete", Some(data))
+}
+
+async fn handle_module_start(
+    runtime: &Arc<RwLock<ArcellaRuntime>>,
+    deployment_id: &str,
+) -> AlmeResponse {
+
+    let mut runtime_guard = runtime.write().await;
+
+    let module_status = match runtime_guard.module_start(deployment_id).await {
+        Ok(status) => status,
+        Err(e) => {
+            tracing::error!("{}", e);
+            return AlmeResponse::error(&e.to_string())
+        }
+    };
+
+    let data = serde_json::json!({
+        "deployment_id": deployment_id,
+        "status": module_status,
+    });    
+
+    tracing::debug!("Command module:start is complete");
+    AlmeResponse::success("Module start is complete", Some(data))
+}
+
+async fn handle_module_stop(
+    runtime: &Arc<RwLock<ArcellaRuntime>>,
+    deployment_id: &str,
+) -> AlmeResponse {
+
+    let mut runtime_guard = runtime.write().await;
+
+    let module_status = match runtime_guard.module_stop(deployment_id).await {
+        Ok(status) => status,
+        Err(e) => {
+            tracing::error!("{}", e);
+            return AlmeResponse::error(&e.to_string())
+        }
+    };
+
+    let data = serde_json::json!({
+        "deployment_id": deployment_id,
+        "status": module_status,
+    });    
+
+    tracing::debug!("Command module:stop is complete");
+    AlmeResponse::success("Module stop is complete", Some(data))
+}

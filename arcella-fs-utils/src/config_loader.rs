@@ -41,7 +41,7 @@ use std::path::{Path};
 
 use crate::collect_toml_includes;
 use crate::ConfigLoadWarning; 
-use crate::error::{ArcellaUtilsError, Result as ArcellaUtilsResult};
+use crate::{ArcellaUtilsError, ArcellaUtilsResult};
 use crate::toml;
 use crate::types::*;
 

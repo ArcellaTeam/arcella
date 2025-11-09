@@ -50,18 +50,21 @@ pub const ARCELLA_PREFIX: &str = "arcella.";
 /// Section name for user-defined custom configuration keys.
 ///
 /// Keys under `arcella.custom.*` may be freely added by users or modules.
-const CUSTOM_SECTION: &str = "custom";
+const _CUSTOM_SECTION: &str = "custom";
 
 /// Section name for module-specific configuration.
 ///
 /// Keys under `arcella.modules.*` are reserved for dynamic module configuration.
-const MODULES_SECTION: &str = "modules";
+const _MODULES_SECTION: &str = "modules";
 
 /// Full prefix for custom configuration keys.
 const CUSTOM_PREFIX_FULL: &str = "arcella.custom";
 
 /// Full prefix for module configuration keys.
 const MODULES_PREFIX_FULL: &str = "arcella.modules";
+
+/// Full prefix for log.internal configuration keys.
+const LOG_INTERNAL_PREFIX_FULL: &str = "arcella.log.internal";
 
 /// Content of the built-in default configuration (fallback values).
 const DEFAULT_CONFIG_CONTENT: &str = include_str!("default_config.toml");
@@ -104,12 +107,6 @@ pub struct ArcellaConfig {
 
     /// Directory containing `arcella.toml` and included configs.
     pub config_dir: PathBuf,
-
-    /// Directory for runtime modules.
-    pub modules_dir: PathBuf,
-
-    /// Directory for cached data.
-    pub cache_dir: PathBuf,
 
     /// Integrity checker for critical configuration files.
     pub integrity_checker: IntegrityChecker,
@@ -360,10 +357,6 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
     // 10. Sort keys for deterministic output
     final_values.sort_keys();
 
-    // 11. Extract required paths from merged config
-    let modules_dir = extract_path_value(&final_values, "modules.dir")?;
-
-    let cache_dir = extract_path_value(&final_values, "cache.dir")?;
 
     integrity_checker.check().await?;
 
@@ -372,8 +365,6 @@ pub async fn load() -> ArcellaResult<(ArcellaConfig, Vec<fs_utils::ConfigLoadWar
             config_values: final_values,
             base_dir,
             config_dir,
-            modules_dir,
-            cache_dir,
             integrity_checker,
         },
         state.warnings,
@@ -472,12 +463,13 @@ fn merge_config(
     // - The source is the main config (`source_file == main_idx`), OR
     // - The main config contains this key with the `#redef` suffix (`redef_allowed_by == main_idx`)
     // New keys (not present in the default config) are allowed only under
-    // `CUSTOM_PREFIX_FULL` or `MODULES_PREFIX_FULL`
+    // `CUSTOM_PREFIX_FULL`, `MODULES_PREFIX_FULL`  or `LOG_INTERNAL_PREFIX_FULL`
     for (key, preliminary_value) in &preliminary_values {
         // Flag indicating that the configuration section allows
         // adding new keys not present in the default configuration
         let is_newable = key.starts_with(CUSTOM_PREFIX_FULL) 
-            || key.starts_with(MODULES_PREFIX_FULL);
+            || key.starts_with(MODULES_PREFIX_FULL)
+            || key.starts_with(LOG_INTERNAL_PREFIX_FULL);
         let new_value = &preliminary_value.value;
         let insert_index = preliminary_value.source_config_idx;
 
