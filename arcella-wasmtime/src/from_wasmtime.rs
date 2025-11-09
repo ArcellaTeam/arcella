@@ -16,7 +16,7 @@ use wasmtime::{
 };
 
 use arcella_types::spec::ComponentItemSpec;
-use crate::Result;
+use crate::ArcellaWasmtimeResult;
 
 const MAX_RECURSION_DEPTH: usize = 32;
 
@@ -34,11 +34,11 @@ pub trait ComponentItemSpecExt {
     /// # Returns
     ///
     /// A `ComponentItemSpec` representing the item, or an error on failure.
-    fn to_spec(&self, engine: &Engine) -> Result<ComponentItemSpec>;
+    fn to_spec(&self, engine: &Engine) -> ArcellaWasmtimeResult<ComponentItemSpec>;
 }
 
 impl ComponentItemSpecExt for ComponentItem {
-    fn to_spec(&self, engine: &Engine) -> Result<ComponentItemSpec> {
+    fn to_spec(&self, engine: &Engine) -> ArcellaWasmtimeResult<ComponentItemSpec> {
         to_spec_with_depth(self, engine, 0, MAX_RECURSION_DEPTH)
     }
 }
@@ -46,20 +46,20 @@ impl ComponentItemSpecExt for ComponentItem {
 /// Extension trait for `wasmtime::component::types::Component`.
 pub trait ComponentTypeExt {
     /// Extracts imports as a map of `ComponentItemSpec`.
-    fn imports_spec(&self, engine: &Engine) -> Result<HashMap<String, ComponentItemSpec>>;
+    fn imports_spec(&self, engine: &Engine) -> ArcellaWasmtimeResult<HashMap<String, ComponentItemSpec>>;
 
     /// Extracts exports as a map of `ComponentItemSpec`.
-    fn exports_spec(&self, engine: &Engine) -> Result<HashMap<String, ComponentItemSpec>>;
+    fn exports_spec(&self, engine: &Engine) -> ArcellaWasmtimeResult<HashMap<String, ComponentItemSpec>>;
 }
 
 impl ComponentTypeExt for types::Component {
-    fn imports_spec(&self, engine: &Engine) -> Result<HashMap<String, ComponentItemSpec>> {
+    fn imports_spec(&self, engine: &Engine) -> ArcellaWasmtimeResult<HashMap<String, ComponentItemSpec>> {
         self.imports(engine)
             .map(|(name, item)| Ok((name.into(), item.to_spec(engine)?)))
             .collect()
     }
 
-    fn exports_spec(&self, engine: &Engine) -> Result<HashMap<String, ComponentItemSpec>> {
+    fn exports_spec(&self, engine: &Engine) -> ArcellaWasmtimeResult<HashMap<String, ComponentItemSpec>> {
         self.exports(engine)
             .map(|(name, item)| Ok((name.into(), item.to_spec(engine)?)))
             .collect()
@@ -71,7 +71,7 @@ fn to_spec_with_depth(
     engine: &Engine, 
     depth: usize,
     max_depth: usize,
-) -> Result<ComponentItemSpec> {
+) -> ArcellaWasmtimeResult<ComponentItemSpec> {
     if depth > max_depth {
         return Ok(ComponentItemSpec::Unknown {
             debug: Some("Exceeded maximum recursion depth".into()),
@@ -187,7 +187,7 @@ mod tests {
     use wasmtime::{component::Component, Engine};
 
     #[test]
-    fn test_simple_component_func() -> Result<()> {
+    fn test_simple_component_func() -> ArcellaWasmtimeResult<()> {
         let engine = Engine::default();
         let wat = r#"
             (component
@@ -219,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn test_recursion_limit() -> Result<()> {
+    fn test_recursion_limit() -> ArcellaWasmtimeResult<()> {
         let engine = Engine::default();
         let wat = r#"(component)"#;
         let component = Component::new(&engine, wat)?;

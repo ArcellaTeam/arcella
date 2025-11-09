@@ -18,7 +18,7 @@ use arcella_types::{
 
 use crate::{
     ArcellaWasmtimeError,
-    Result,
+    ArcellaWasmtimeResult,
     from_wasmtime::ComponentItemSpecExt,
 };
 
@@ -34,7 +34,7 @@ use crate::{
 ///
 /// For MVP v0.2.3, we assume that if `component.toml` is missing,
 /// the filename encodes `name@version`.
-pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> Result<ComponentManifest> {
+pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> ArcellaWasmtimeResult<ComponentManifest> {
     if !wasm_path.exists() {
         return Err(ArcellaWasmtimeError::IoWithPath {
             source: std::io::Error::from(std::io::ErrorKind::NotFound),
