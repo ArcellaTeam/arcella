@@ -452,40 +452,38 @@
 <a href=#452 id=452 data-nosnippet>452</a>            config_values,
 <a href=#453 id=453 data-nosnippet>453</a>            base_dir,
 <a href=#454 id=454 data-nosnippet>454</a>            config_dir,
-<a href=#455 id=455 data-nosnippet>455</a>            modules_dir,
-<a href=#456 id=456 data-nosnippet>456</a>            cache_dir,
-<a href=#457 id=457 data-nosnippet>457</a>            integrity_checker,
-<a href=#458 id=458 data-nosnippet>458</a>        };
-<a href=#459 id=459 data-nosnippet>459</a>
-<a href=#460 id=460 data-nosnippet>460</a>        <span class="comment">// 4. Инициализируем логирование
-<a href=#461 id=461 data-nosnippet>461</a>        </span><span class="kw">let </span>guard = init(<span class="kw-2">&amp;</span>config).expect(<span class="string">"log::init should succeed"</span>);
-<a href=#462 id=462 data-nosnippet>462</a>
-<a href=#463 id=463 data-nosnippet>463</a>         <span class="comment">// 5. Проверяем, что подсистема tracing работает: пишем тестовые сообщения
-<a href=#464 id=464 data-nosnippet>464</a>        </span><span class="macro">tracing::info!</span>(<span class="string">"Test log message from default config"</span>);
-<a href=#465 id=465 data-nosnippet>465</a>        <span class="macro">tracing::debug!</span>(<span class="string">"This debug message should not appear in logs"</span>);
-<a href=#466 id=466 data-nosnippet>466</a>
-<a href=#467 id=467 data-nosnippet>467</a>        <span class="comment">// 6. Проверяем, что буфер ALME содержит сообщение
-<a href=#468 id=468 data-nosnippet>468</a>        </span><span class="kw">let </span>recent_logs = get_recent_logs(<span class="number">10</span>);
-<a href=#469 id=469 data-nosnippet>469</a>        <span class="macro">assert!</span>(!recent_logs.is_empty(), <span class="string">"ALME log buffer should contain logs"</span>);
-<a href=#470 id=470 data-nosnippet>470</a>        <span class="macro">assert!</span>(recent_logs.iter().any(|line| line.contains(<span class="string">"Test log message from default config"</span>)));
-<a href=#471 id=471 data-nosnippet>471</a>
-<a href=#472 id=472 data-nosnippet>472</a>        <span class="comment">// 7. Проверяем, что лог-файл создан
-<a href=#473 id=473 data-nosnippet>473</a>        </span><span class="kw">let </span>log_file_path = log_dir.join(<span class="string">"arcella.log"</span>);
-<a href=#474 id=474 data-nosnippet>474</a>        <span class="macro">assert!</span>(log_file_path.exists(), <span class="string">"arcella.log should be created"</span>);
-<a href=#475 id=475 data-nosnippet>475</a>
-<a href=#476 id=476 data-nosnippet>476</a>        <span class="comment">// 8. Закрываем лог файл
-<a href=#477 id=477 data-nosnippet>477</a>        </span>drop(guard);
-<a href=#478 id=478 data-nosnippet>478</a>
-<a href=#479 id=479 data-nosnippet>479</a>        <span class="comment">// 9. Проверяем, что сообщения сохранены
-<a href=#480 id=480 data-nosnippet>480</a>        </span><span class="kw">let </span>log_content = std::fs::read_to_string(<span class="kw-2">&amp;</span>log_file_path)
-<a href=#481 id=481 data-nosnippet>481</a>            .expect(<span class="string">"Failed to read arcella.log"</span>);
-<a href=#482 id=482 data-nosnippet>482</a>        <span class="macro">assert!</span>(log_content.contains(<span class="string">"Test log message from default config"</span>));
-<a href=#483 id=483 data-nosnippet>483</a>
-<a href=#484 id=484 data-nosnippet>484</a>        <span class="comment">// 10. Дополнительно: проверим, что уровень "debug" не попал в лог
-<a href=#485 id=485 data-nosnippet>485</a>        </span><span class="kw">let </span>recent_logs_after_debug = get_recent_logs(<span class="number">10</span>);
-<a href=#486 id=486 data-nosnippet>486</a>        <span class="comment">// Поскольку уровень = info, debug-сообщение не должно быть записано
-<a href=#487 id=487 data-nosnippet>487</a>        </span><span class="macro">assert!</span>(!recent_logs_after_debug.iter().any(|line| line.contains(<span class="string">"This debug message"</span>)));
-<a href=#488 id=488 data-nosnippet>488</a>
-<a href=#489 id=489 data-nosnippet>489</a>        <span class="comment">// Тест завершён; TempDir удалится автоматически
-<a href=#490 id=490 data-nosnippet>490</a>    </span>}
-<a href=#491 id=491 data-nosnippet>491</a>}</code></pre></div></section></main></body></html>
+<a href=#455 id=455 data-nosnippet>455</a>            integrity_checker,
+<a href=#456 id=456 data-nosnippet>456</a>        };
+<a href=#457 id=457 data-nosnippet>457</a>
+<a href=#458 id=458 data-nosnippet>458</a>        <span class="comment">// 4. Инициализируем логирование
+<a href=#459 id=459 data-nosnippet>459</a>        </span><span class="kw">let </span>guard = init(<span class="kw-2">&amp;</span>config).expect(<span class="string">"log::init should succeed"</span>);
+<a href=#460 id=460 data-nosnippet>460</a>
+<a href=#461 id=461 data-nosnippet>461</a>         <span class="comment">// 5. Проверяем, что подсистема tracing работает: пишем тестовые сообщения
+<a href=#462 id=462 data-nosnippet>462</a>        </span><span class="macro">tracing::info!</span>(<span class="string">"Test log message from default config"</span>);
+<a href=#463 id=463 data-nosnippet>463</a>        <span class="macro">tracing::debug!</span>(<span class="string">"This debug message should not appear in logs"</span>);
+<a href=#464 id=464 data-nosnippet>464</a>
+<a href=#465 id=465 data-nosnippet>465</a>        <span class="comment">// 6. Проверяем, что буфер ALME содержит сообщение
+<a href=#466 id=466 data-nosnippet>466</a>        </span><span class="kw">let </span>recent_logs = get_recent_logs(<span class="number">10</span>);
+<a href=#467 id=467 data-nosnippet>467</a>        <span class="macro">assert!</span>(!recent_logs.is_empty(), <span class="string">"ALME log buffer should contain logs"</span>);
+<a href=#468 id=468 data-nosnippet>468</a>        <span class="macro">assert!</span>(recent_logs.iter().any(|line| line.contains(<span class="string">"Test log message from default config"</span>)));
+<a href=#469 id=469 data-nosnippet>469</a>
+<a href=#470 id=470 data-nosnippet>470</a>        <span class="comment">// 7. Проверяем, что лог-файл создан
+<a href=#471 id=471 data-nosnippet>471</a>        </span><span class="kw">let </span>log_file_path = log_dir.join(<span class="string">"arcella.log"</span>);
+<a href=#472 id=472 data-nosnippet>472</a>        <span class="macro">assert!</span>(log_file_path.exists(), <span class="string">"arcella.log should be created"</span>);
+<a href=#473 id=473 data-nosnippet>473</a>
+<a href=#474 id=474 data-nosnippet>474</a>        <span class="comment">// 8. Закрываем лог файл
+<a href=#475 id=475 data-nosnippet>475</a>        </span>drop(guard);
+<a href=#476 id=476 data-nosnippet>476</a>
+<a href=#477 id=477 data-nosnippet>477</a>        <span class="comment">// 9. Проверяем, что сообщения сохранены
+<a href=#478 id=478 data-nosnippet>478</a>        </span><span class="kw">let </span>log_content = std::fs::read_to_string(<span class="kw-2">&amp;</span>log_file_path)
+<a href=#479 id=479 data-nosnippet>479</a>            .expect(<span class="string">"Failed to read arcella.log"</span>);
+<a href=#480 id=480 data-nosnippet>480</a>        <span class="macro">assert!</span>(log_content.contains(<span class="string">"Test log message from default config"</span>));
+<a href=#481 id=481 data-nosnippet>481</a>
+<a href=#482 id=482 data-nosnippet>482</a>        <span class="comment">// 10. Дополнительно: проверим, что уровень "debug" не попал в лог
+<a href=#483 id=483 data-nosnippet>483</a>        </span><span class="kw">let </span>recent_logs_after_debug = get_recent_logs(<span class="number">10</span>);
+<a href=#484 id=484 data-nosnippet>484</a>        <span class="comment">// Поскольку уровень = info, debug-сообщение не должно быть записано
+<a href=#485 id=485 data-nosnippet>485</a>        </span><span class="macro">assert!</span>(!recent_logs_after_debug.iter().any(|line| line.contains(<span class="string">"This debug message"</span>)));
+<a href=#486 id=486 data-nosnippet>486</a>
+<a href=#487 id=487 data-nosnippet>487</a>        <span class="comment">// Тест завершён; TempDir удалится автоматически
+<a href=#488 id=488 data-nosnippet>488</a>    </span>}
+<a href=#489 id=489 data-nosnippet>489</a>}</code></pre></div></section></main></body></html>

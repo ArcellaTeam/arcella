@@ -244,14 +244,14 @@
 <a href=#244 id=244 data-nosnippet>244</a>            <span class="prelude-val">Err</span>(e) =&gt; {
 <a href=#245 id=245 data-nosnippet>245</a>                <span class="kw">let </span>message = <span class="macro">format!</span>(<span class="string">"Invalid JSON: {} "</span>, e);
 <a href=#246 id=246 data-nosnippet>246</a>                <span class="kw">let </span>resp = AlmeResponse::error(<span class="kw-2">&amp;</span>message);
-<a href=#247 id=247 data-nosnippet>247</a>                <span class="macro">tracing::debug!</span>(<span class="string">"{}"</span>, message);
+<a href=#247 id=247 data-nosnippet>247</a>                <span class="macro">tracing::error!</span>(<span class="string">"{}"</span>, message);
 <a href=#248 id=248 data-nosnippet>248</a>                send_response(<span class="kw-2">&amp;mut </span>writer, <span class="kw-2">&amp;</span>resp).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#249 id=249 data-nosnippet>249</a>                <span class="kw">continue</span>;
 <a href=#250 id=250 data-nosnippet>250</a>            }
 <a href=#251 id=251 data-nosnippet>251</a>        };
 <a href=#252 id=252 data-nosnippet>252</a>        <span class="macro">tracing::trace!</span>(<span class="string">"Get request: {:?}"</span>, request);
 <a href=#253 id=253 data-nosnippet>253</a>
-<a href=#254 id=254 data-nosnippet>254</a>        <span class="kw">let </span>response = <span class="kw">super</span>::commands::dispatch_command(<span class="kw-2">&amp;</span>request.cmd, <span class="kw-2">&amp;</span>request.args, <span class="kw-2">&amp;</span>runtime).<span class="kw">await</span>;
+<a href=#254 id=254 data-nosnippet>254</a>        <span class="kw">let </span>response = <span class="kw">super</span>::commands::dispatch_command(<span class="kw-2">&amp;</span>request, <span class="kw-2">&amp;</span>runtime).<span class="kw">await</span>;
 <a href=#255 id=255 data-nosnippet>255</a>
 <a href=#256 id=256 data-nosnippet>256</a>        send_response(<span class="kw-2">&amp;mut </span>writer, <span class="kw-2">&amp;</span>response).<span class="kw">await</span><span class="question-mark">?</span>;
 <a href=#257 id=257 data-nosnippet>257</a>

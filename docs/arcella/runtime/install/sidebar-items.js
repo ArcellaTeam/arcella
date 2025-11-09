@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["check_module_not_installed","install_module_files_to_storage","prepare_install_package_in_temp","sanitize_module_id","validate_install_package"],"struct":["InstallPackage"]};

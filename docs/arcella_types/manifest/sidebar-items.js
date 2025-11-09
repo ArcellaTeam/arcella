@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["ComponentCapabilities","ComponentManifest","ComponentResources","ComponentSecurity"]};
+window.SIDEBAR_ITEMS = {"struct":["ComponentCapabilities","ComponentManifest","ComponentResources","ComponentSecurity","InterfaceList"]};

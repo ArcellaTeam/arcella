@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["alme","config","manifest","spec"]};
+window.SIDEBAR_ITEMS = {"mod":["alme","config","error","manifest","spec"],"trait":["FromName"]};

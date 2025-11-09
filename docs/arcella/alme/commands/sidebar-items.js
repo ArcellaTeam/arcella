@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["dispatch_command","handle_log_tail","handle_module_list","handle_ping","handle_status"]};
+window.SIDEBAR_ITEMS = {"fn":["dispatch_command","handle_log_tail","handle_module_deploy","handle_module_install","handle_module_list","handle_module_start","handle_module_stop","handle_ping","handle_status"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Commands"],"fn":["get_default_socket_path","handle_command","main","send_alme_request"],"struct":["Cli"]};
+window.SIDEBAR_ITEMS = {"enum":["Commands"],"fn":["exec_alme_cmd","get_default_socket_path","handle_command","main","send_alme_request"],"struct":["Cli"]};
