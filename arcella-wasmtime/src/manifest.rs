@@ -7,60 +7,20 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use regex::Regex;
 use std::collections::HashMap;
-use std::path::{Path};
-use std::sync::OnceLock;
-use wasmtime::{
-    Engine,
-    component::{
-        Component, 
-    }
-};
+use std::path::Path;
+use wasmtime::{Engine, component::Component};
 
 use arcella_types::{
-    manifest::{ComponentManifest, ComponentCapabilities},
+    manifest::{ComponentManifest, ComponentCapabilities, InterfaceList},
     spec::ComponentItemSpec,
 };
-use crate::ArcellaWasmtimeError;
-use crate::Result;
-use crate::from_wasmtime::{ComponentItemSpecExt, ComponentTypeExt};
 
-pub trait ComponentManifestExt {
-
-    fn validate(&self) -> Result<()>;
-
-}
-
-impl ComponentManifestExt for ComponentManifest {
-    
-    /// Validates semantic correctness of the component manifest.
-    fn validate(&self) -> Result<()> {
-        if self.name.is_empty() {
-            return Err(ArcellaWasmtimeError::Manifest("Component name must not be empty".into()));
-        }
-        if self.version.is_empty() {
-            return Err(ArcellaWasmtimeError::Manifest("Component version must not be empty".into()));
-        }
-
-        // Validate name format (alphanumeric, hyphens, underscores)
-        if !ComponentManifest::validate_name_format(&self.name) {
-            return Err(ArcellaWasmtimeError::Manifest(
-                "Component name must contain only alphanumeric characters, hyphens, and underscores".into()
-            ));
-        }
-
-        // Validate version format (semver-like)
-        if !ComponentManifest::validate_version_format(&self.version) {
-            return Err(ArcellaWasmtimeError::Manifest(
-                "Component version must follow semantic versioning format (e.g., 0.1.0)".into()
-                        ));
-        }
-
-        Ok(())
-    }
-
-}
+use crate::{
+    ArcellaWasmtimeError,
+    Result,
+    from_wasmtime::ComponentItemSpecExt,
+};
 
 /// Extracts component metadata directly from a WebAssembly Component binary.
 ///
@@ -70,19 +30,14 @@ impl ComponentManifestExt for ComponentManifest {
 /// - Does **not** include version (`@x.y`) — this must be provided via `component.toml`
 ///   or inferred from file naming convention if needed later.
 /// - Requires a valid `name` and `version` — since they are not stored in Wasm,
-///   this function returns an error. In practice, you should derive them from
-///   the filename (e.g., `http-logger@0.1.0.wasm`) or require `component.toml`.
+///   this function infers them from the filename (e.g., `http-logger@0.1.0.wasm`).
 ///
 /// For MVP v0.2.3, we assume that if `component.toml` is missing,
 /// the filename encodes `name@version`.
 pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> Result<ComponentManifest> {
-
     if !wasm_path.exists() {
-        return Err(ArcellaWasmtimeError::IoWithPath{
-            source: std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("File not found: {:?}", wasm_path)
-            ),
+        return Err(ArcellaWasmtimeError::IoWithPath {
+            source: std::io::Error::from(std::io::ErrorKind::NotFound),
             path: wasm_path.into(),
         });
     }
@@ -90,11 +45,11 @@ pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> Result
     let file_stem = wasm_path
         .file_stem()
         .and_then(|s| s.to_str())
-        .ok_or_else(|| ArcellaWasmtimeError::Manifest("Invalid .wasm filename".into()))?;        
+        .ok_or_else(|| ArcellaWasmtimeError::Manifest("Invalid .wasm filename".into()))?;
 
     if !ComponentManifest::validate_module_id(file_stem) {
         return Err(ArcellaWasmtimeError::Manifest(
-            "Filename must be 'name@version.wasm' for components without component.toml".into()
+            "Expected 'name@version' filename format for components without component.toml".into(),
         ));
     }
 
@@ -102,9 +57,9 @@ pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> Result
         .split_once('@')
         .ok_or_else(|| ArcellaWasmtimeError::Manifest("Expected 'name@version' format".into()))?;
 
-    let component = Component::from_file(engine, &wasm_path)
+    let component = Component::from_file(engine, wasm_path)
         .map_err(ArcellaWasmtimeError::Wasmtime)?;
-    
+
     let component_type = component.component_type();
 
     let exports: HashMap<String, ComponentItemSpec> = component_type
@@ -135,12 +90,11 @@ pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> Result
         name: name.into(),
         version: version.into(),
         description: None,
-        exports: exports,
-        imports: imports,
+        exports: InterfaceList::from(exports),
+        imports: InterfaceList::from(imports),
         capabilities: ComponentCapabilities::default(),
     };
 
     manifest.validate()?;
     Ok(manifest)
-
 }
