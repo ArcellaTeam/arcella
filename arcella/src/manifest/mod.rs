@@ -11,7 +11,7 @@
 //!
 //! This module implements a three-layer manifest system:
 //!
-//! 1. **Component Manifest** (`component.toml`): Describes *what* the module is —
+//! 1. **Component Manifest** (`.component.toml`): Describes *what* the module is —
 //!    its identity, interfaces (WIT exports/imports), and metadata.
 //!    This file is **optional** for Component Model modules (interfaces can be read from .wasm),
 //!    but **required** for WASI modules.
@@ -35,8 +35,7 @@ use arcella_types::{
     manifest::ComponentManifest
 };
 use arcella_wasmtime::{
-    ComponentManifestExt,
-    error::ArcellaWasmtimeError,
+    ArcellaWasmtimeError,
     manifest,
 };
 
@@ -53,7 +52,9 @@ struct ComponentManifestWrapper {
 }
 
 pub fn load_component_manifest_from_toml(path: &Path) -> ArcellaResult<Option<ComponentManifest>> {
+    tracing::debug!("Loading component manifest from {:?}", path);
     if !path.exists() {
+        tracing::debug!("Component manifest not found at {:?}", path);
         return Ok(None);
     }
 
@@ -439,18 +440,38 @@ pub struct ComponentBundle {
 }
 
 impl ComponentBundle {
-    /// Loads a complete component bundle from a directory
-    pub fn from_wasm_path(engine: &Engine, wasm_path: &Path) -> ArcellaResult<Self> {
 
-        let component = if let Some(manifest) = load_component_manifest_from_toml(
-            &wasm_path.with_file_name("component.toml")
-        )? {
-            manifest
+    /// Loads a complete component bundle from a .wasm file
+    pub fn from_wasm_and_toml(engine: &Engine, wasm_path: &Path, toml_path: &Path) -> ArcellaResult<Self> {
+
+        let manifest = load_component_manifest_from_toml(toml_path)?;
+
+        let component = if let Some(m) = manifest {
+            m
         } else {
             // 2. If component.toml is missing, try to extract from .wasm
             // (Requires arcella_wasmtime crate)
             manifest::component_manifest_from_wasm(engine, wasm_path)?
         };
+                
+        let template = DeploymentTemplate::from_template_toml(wasm_path)?;
+
+        let bundle = Self {
+            component,
+            template,
+            wasm_path: wasm_path.to_path_buf(),
+        };
+
+        bundle.validate()?;
+
+        Ok(bundle)
+
+    }
+
+    /// Loads a complete component bundle from a .wasm file
+    pub fn from_wasm_path(engine: &Engine, wasm_path: &Path) -> ArcellaResult<Self> {
+
+        let component = manifest::component_manifest_from_wasm(engine, wasm_path)?;
                 
         let template = DeploymentTemplate::from_template_toml(wasm_path)?;
 
@@ -528,6 +549,33 @@ fn validate_isolation_constraints(
 // ========================
 // 7. TESTS
 // ========================
+
+
+#[cfg(test)]
+pub mod test_utils {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[cfg(test)]
+    pub fn create_test_manifest() -> Option<ComponentManifest> {
+        let temp_dir = TempDir::new().unwrap();
+        let toml_path = temp_dir.path().join("component.toml");
+
+        let toml_content = r#"
+            [component]
+            name = "test-component"
+            version = "0.1.0"
+            description = "A test component"
+            exports = ["foo:bar@1.0"]
+            imports = ["wasi:cli@0.2.0"]
+        "#;
+
+        fs::write(&toml_path, toml_content).unwrap();
+        load_component_manifest_from_toml(&toml_path).unwrap()
+    }
+
+} 
 
 #[cfg(test)]
 mod tests {

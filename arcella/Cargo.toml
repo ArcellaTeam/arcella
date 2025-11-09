@@ -20,6 +20,7 @@ ordered-float = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true }
 time = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -34,6 +35,5 @@ wat = { workspace = true }
 name = "integration_tests"
 
 [dev-dependencies]
-tempfile = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 wasmtime-wasi = { workspace = true }

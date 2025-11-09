@@ -14,7 +14,10 @@ use std::{
     time::{Duration, Instant}
 };
 use time::OffsetDateTime;
-use tokio::sync::{RwLock, broadcast};
+use tokio::{
+    fs,
+    sync::{RwLock, broadcast},
+};
 
 use wasmtime::{
     Engine,
@@ -36,6 +39,9 @@ use state::*;
 
 mod mutators;
 use mutators::*;
+
+mod install;
+use install::*;
 
 struct ArcellaRuntimeEnvironment {
     pub pid: u32,
@@ -70,8 +76,8 @@ impl ArcellaRuntime{
             start_utc: OffsetDateTime::now_utc(),
         };
 
-        let state_dir = storage.modules_dir.clone();
-        let state_manager = StateManager::open(&state_dir, "arcella.wal.jsonl").await?;
+        let metadata_dir = storage.metadata_dir.clone();
+        let state_manager = StateManager::open(&metadata_dir, "arcella.wal.jsonl").await?;
 
         let runtime = Self {
             config,
@@ -109,50 +115,60 @@ impl ArcellaRuntime{
     pub async fn install_module_from_path(
         &mut self,
         wasm_path: &PathBuf,
-    ) -> ArcellaResult<usize> {
+    ) -> ArcellaResult<String> {
+        tracing::info!("Starting installation from: {:?}", wasm_path);
 
-        // 1. Валидация файла
-        if !wasm_path.exists() {
-            let error = ArcellaError::IoWithPath {
-                source: std::io::ErrorKind::NotFound.into(),
-                path: wasm_path.clone(),
-            };
-            tracing::error!("{}", error);
-            return Err(error);
-        }
+        // 1. Validate input package structure
+        let validated = validate_install_package(wasm_path).await?;
+        tracing::debug!("Package {:?} validated", wasm_path);
 
-        if wasm_path.extension().map_or(true, |ext| ext != "wasm") {
-            let error = ArcellaError::RuntimeError(
-                "Path is not a .wasm file".into(),
-            );
-            tracing::error!("{}", error);
-            return Err(error);
-        }        
-        tracing::debug!("File {:?} is wasm", wasm_path );
+        // 2. Stage into anonymous temp directory
+        let staged = prepare_install_package_in_temp(&self.storage, validated).await?;
+        tracing::debug!("Package staged to: {:?}", staged.package_dir);   
 
-        let engine = Engine::default();
-
-        let bundle = match ComponentBundle::from_wasm_path(&engine, wasm_path) {
-            Ok(boundle) => boundle,
-            Err(e) => {
-                tracing::error!("{}", e);
-                return Err(e);
-            }
+        // 3. Parse to obtain module_id
+        let engine = wasmtime::Engine::default();
+        let bundle = if let Some(ref toml) = staged.component_toml_path {
+            ComponentBundle::from_wasm_and_toml(&engine, &staged.wasm_path, toml)?
+        } else {
+            ComponentBundle::from_wasm_path(&engine, &staged.wasm_path)?
         };
-
         let module_id = bundle.component.id();
+        tracing::info!("Parsed module ID: {}", module_id);
 
-        /*let mutator = InstallModule {
+        // 4. Check for duplicates (state + disk)
+        let current_state = self.state_manager.snapshot().await;
+        check_module_not_installed(
+            &current_state,
+            &self.storage.modules_dir,
+            &module_id,
+        ).await?;
+        tracing::debug!("Module ID is unique");
 
+        // 5. Install files to permanent storage
+        install_module_files_to_storage(
+            &staged,
+            &self.storage.modules_dir,
+            &module_id,
+        ).await?;
+        tracing::debug!("Files installed to modules directory");
+
+        // 6. Record in WAL state
+        let mutator = InstallModule {
+            manifest: bundle.component.clone(),
         };
-        
         self.state_manager
             .apply(ArcellaMutation::InstallModule(mutator))
-            .await?;*/
+            .await?;
+        tracing::info!("Module installed and recorded in state: {}", module_id);
 
-        tracing::debug!("Runtime: Installing module {:?}", module_id );
+        // 7. Cleanup staging directory
+        if let Some(ref staging_dir) = staged.package_dir {
+            fs::remove_dir_all(staging_dir).await.ok();
+            tracing::debug!("Staging directory cleaned up");
+        }
 
-        Ok(10)
+        Ok(module_id)
     }
 
     pub async fn deploy_module_from_path(

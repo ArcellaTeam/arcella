@@ -8,14 +8,17 @@
 // except according to those terms.
 
 use std::sync::Arc;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use tempfile::TempDir;
 
 use crate::config::ArcellaConfig;
 use crate::error::{ArcellaError, Result as ArcellaResult};
 
 pub struct StorageManager {
-    pub modules_dir: PathBuf,
     pub cache_dir: PathBuf,
+    pub metadata_dir: PathBuf,
+    pub modules_dir: PathBuf,
+    pub temp_dir: TempDir,
 }
 
 impl StorageManager {
@@ -23,18 +26,31 @@ impl StorageManager {
         config: &Arc<ArcellaConfig>,
     ) -> ArcellaResult<Self> {
 
-        let modules_dir = config.extract_path_value("modules.dir")?;
-        let cache_dir = config.extract_path_value("cache.dir")?;
-
-        let modules_dir = config.base_dir.join(modules_dir);
-        let cache_dir = config.base_dir.join(cache_dir);
-
-        tracing::debug!("Modules directory path: {:?}", modules_dir );
+        let cache_dir = config
+            .base_dir.join(config.extract_path_value("cache.dir")?);
         tracing::debug!("Cache directory path: {:?}", cache_dir );
 
+        let metadata_dir = config
+            .base_dir.join(config.extract_path_value("metadata.dir")?);
+        tracing::debug!("Metadata directory path: {:?}", metadata_dir );
+
+        let modules_dir = config
+            .base_dir.join(config.extract_path_value("modules.dir")?);
+        tracing::debug!("Modules directory path: {:?}", modules_dir );
+
+        let temp_dir = tempfile::tempdir()
+            .map_err(|e| ArcellaError::IoWithPath {
+                source: e,
+                path: PathBuf::from("<tempdir>"),
+            })?;
+        tracing::debug!("Temporary directory created: {:?}", temp_dir.path());
+
+
         let manager = Self {
-            modules_dir,
             cache_dir,
+            metadata_dir,
+            modules_dir,
+            temp_dir,
         };
 
         manager.ensure_directories().await?;
@@ -56,6 +72,11 @@ impl StorageManager {
 
         Ok(())
     } 
+
+    pub fn temp_path(&self) -> &Path {
+        self.temp_dir.path()
+    }
+
 
 }
 
