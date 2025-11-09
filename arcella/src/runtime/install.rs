@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs;
 
 use crate::{
-    error::{ArcellaError, Result as ArcellaResult},
+    {ArcellaError, ArcellaResult},
     runtime::state::ArcellaState,
     storage::StorageManager,
 };

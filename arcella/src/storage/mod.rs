@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 use crate::config::ArcellaConfig;
-use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::{ArcellaError, ArcellaResult};
 
 pub struct StorageManager {
     pub cache_dir: PathBuf,

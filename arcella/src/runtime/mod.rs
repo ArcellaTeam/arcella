@@ -8,7 +8,6 @@
 // except according to those terms.
 
 use std::{
-    collections::{HashMap, HashSet},
     path::{PathBuf},
     sync::Arc,
     time::{Duration, Instant}
@@ -16,7 +15,7 @@ use std::{
 use time::OffsetDateTime;
 use tokio::{
     fs,
-    sync::{RwLock, broadcast},
+    sync::RwLock,
 };
 
 use wasmtime::{
@@ -29,10 +28,13 @@ use arcella_types::{
     manifest::ComponentManifest,
 };
 
-use crate::{storage, cache};
-use crate::config::ArcellaConfig;
-use crate::error::{ArcellaError, Result as ArcellaResult};
-use crate::manifest::ComponentBundle;
+use crate::{
+    ArcellaResult,
+    cache,
+    config::ArcellaConfig,
+    manifest::ComponentBundle,
+    storage,
+};
 
 mod state;
 use state::*;

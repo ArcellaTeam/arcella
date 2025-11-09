@@ -42,7 +42,7 @@ use arcella_types::{
 };
 use arcella_fs_utils as fs_utils;
 
-use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::{ArcellaError, ArcellaResult};
 
 /// Standard prefix for all built-in Arcella configuration keys.
 pub const ARCELLA_PREFIX: &str = "arcella.";

@@ -39,7 +39,7 @@ use arcella_wasmtime::{
     manifest,
 };
 
-use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::{ArcellaError, ArcellaResult};
 
 // ================================
 // 1. COMPONENT MANIFEST (portable)

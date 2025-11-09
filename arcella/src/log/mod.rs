@@ -39,7 +39,7 @@ use tracing_subscriber::{
     Layer,
 };
 
-use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::{ArcellaError, ArcellaResult};
 use crate::config::{
     ARCELLA_PREFIX,
     ArcellaConfig,
