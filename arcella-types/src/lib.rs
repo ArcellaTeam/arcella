@@ -8,6 +8,10 @@
 // except according to those terms.
 
 pub mod alme;
+pub mod config;
+pub mod error;
 pub mod manifest;
 pub mod spec;
-pub mod config;
+
+pub use error::{ArcellaTypeError, Result};
+pub use flexicon::adaptive::FromName;

@@ -9,9 +9,11 @@ repository.workspace = true
 description = "Arcella types library"
 
 [dependencies]
+flexicon = { workspace = true, features = ["serde"] }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 indexmap = { workspace = true }
 ordered-float = { workspace = true }
 
