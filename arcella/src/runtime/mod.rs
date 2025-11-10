@@ -45,6 +45,9 @@ use mutators::*;
 mod install;
 use install::*;
 
+mod deploy;
+use deploy::*;
+
 struct ArcellaRuntimeEnvironment {
     pub pid: u32,
     pub start_instant: Instant,
@@ -122,7 +125,7 @@ impl ArcellaRuntime{
 
         // 1. Validate input package structure
         let validated = validate_install_package(wasm_path).await?;
-        tracing::debug!("Package {:?} validated", wasm_path);
+        tracing::debug!("Package validated: wasm={:?}", validated.wasm_path);
 
         // 2. Stage into anonymous temp directory
         let staged = prepare_install_package_in_temp(&self.storage, validated).await?;
@@ -175,12 +178,24 @@ impl ArcellaRuntime{
 
     pub async fn deploy_module_from_path(
         &mut self,
-        wasm_path: &PathBuf,
-    ) -> ArcellaResult<usize> {
+        deploy_path: &PathBuf,
+    ) -> ArcellaResult<(String, String)> {
 
-        tracing::debug!("Runtime: Deploing module from path: {:?}", wasm_path );
+        tracing::info!("Starting deploy from: {:?}", deploy_path);
 
-        Ok(10)
+        // 1. Validate input package structure
+        let validated = validate_deploy_package(deploy_path).await?;
+        tracing::debug!("Deployment package {:?} validated", deploy_path);
+
+        // 2. Stage into anonymous temp directory
+        let staged = prepare_deploy_package_in_temp(&self.storage, validated).await?;
+        tracing::debug!("Deployment staged to: {:?}", staged.package_dir);   
+
+        // 3. Parse deployment specification
+        //let spec = DeploymentSpec::from_file(&staged.deployment_toml_path)?;
+        //tracing::info!("Parsed deployment spec: module_id={}, group={}", spec.module_id, spec.group);
+
+        Ok(("module_id".to_string(), "deploy_id".to_string()))
     }
 
     pub async fn module_start(

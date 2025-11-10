@@ -23,10 +23,12 @@
 //!
 //! The system is thread-safe and uses non-blocking I/O for file writes.
 
-use std::collections::{VecDeque, HashMap};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::{VecDeque, HashMap},
+    fs,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 use time::OffsetDateTime;
 
 use serde::{Deserialize, Deserializer};
@@ -39,11 +41,14 @@ use tracing_subscriber::{
     Layer,
 };
 
-use crate::{ArcellaError, ArcellaResult};
-use crate::config::{
-    ARCELLA_PREFIX,
-    ArcellaConfig,
-    extract_subtree,
+use crate::{
+    ArcellaError, 
+    ArcellaResult,
+    config::{
+        ARCELLA_PREFIX,
+        ArcellaConfig,
+        extract_subtree,
+    },
 };
 
 // Global resources for logger
@@ -397,9 +402,7 @@ mod tests {
     use crate::config::{ArcellaConfig, IntegrityChecker};
     use arcella_types::config::{ConfigValues, Value as TomlValue};
     use indexmap::IndexMap;
-    use std::path::PathBuf;
     use tempfile::TempDir;
-    use tracing::Level;
 
     fn make_toml_value(s: &str) -> TomlValue {
         TomlValue::String(s.to_string())

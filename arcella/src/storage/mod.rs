@@ -77,42 +77,35 @@ impl StorageManager {
         self.temp_dir.path()
     }
 
+    #[cfg(test)]
+    pub fn new_for_tests(modules_dir: PathBuf, temp_dir: PathBuf) -> Self {
+        use std::fs;
+        // Создаём временный TempDir вручную из пути (trick для тестов)
+        // Но проще — использовать реальный TempDir и переопределить пути
+        // Однако для простоты: создаём все необходимые поддиректории
+        let cache_dir = temp_dir.join("cache");
+        let metadata_dir = temp_dir.join("metadata");
 
+        fs::create_dir_all(&modules_dir).expect("Failed to create test modules dir");
+        fs::create_dir_all(&cache_dir).expect("Failed to create test cache dir");
+        fs::create_dir_all(&metadata_dir).expect("Failed to create test metadata dir");
+
+        // Создаём отдельный TempDir для temp_dir менеджера
+        let internal_temp = tempfile::tempdir().expect("Failed to create internal temp dir");
+
+        Self {
+            cache_dir,
+            metadata_dir,
+            modules_dir,
+            temp_dir: internal_temp,
+        }
+    }
+        
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    /*#[tokio::test]
-    async fn test_storage_manager_creates_dirs() {
-        let temp_dir = TempDir::new().unwrap();
-        let base_path = temp_dir.path().join("arcella_test");
-
-        let config = Arc::new(ArcellaConfig {
-            base_dir: Some(base_path.clone()),
-            config_dir: Some(base_path.join("config")),
-            log_dir: Some(base_path.join("log")),
-            modules_dir: Some(base_path.join("modules")),
-            cache_dir: Some(base_path.join("cache")),
-            socket_path: Some(base_path.join("alme")),
-        });
-
-        let storage = StorageManager::new(&config).await.unwrap();
-
-        assert!(storage.base_dir.exists());
-        assert!(storage.config_dir.exists());
-        assert!(storage.modules_dir.exists());
-        assert!(storage.cache_dir.exists());
-
-        // Проверка прав доступа для base_dir (только на Unix)
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let perms = std::fs::metadata(&storage.base_dir).unwrap().permissions();
-            assert_eq!(perms.mode() & 0o777, 0o700);
-        }
-    }*/
 }
