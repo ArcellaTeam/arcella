@@ -12,7 +12,7 @@
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>tempfile::TempDir;
 <a href=#13 id=13 data-nosnippet>13</a>
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span><span class="kw">crate</span>::config::ArcellaConfig;
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span><span class="kw">crate</span>::error::{ArcellaError, <span class="prelude-ty">Result</span> <span class="kw">as </span>ArcellaResult};
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use crate</span>::{ArcellaError, ArcellaResult};
 <a href=#16 id=16 data-nosnippet>16</a>
 <a href=#17 id=17 data-nosnippet>17</a><span class="kw">pub struct </span>StorageManager {
 <a href=#18 id=18 data-nosnippet>18</a>    <span class="kw">pub </span>cache_dir: PathBuf,
@@ -77,42 +77,35 @@
 <a href=#77 id=77 data-nosnippet>77</a>        <span class="self">self</span>.temp_dir.path()
 <a href=#78 id=78 data-nosnippet>78</a>    }
 <a href=#79 id=79 data-nosnippet>79</a>
-<a href=#80 id=80 data-nosnippet>80</a>
-<a href=#81 id=81 data-nosnippet>81</a>}
-<a href=#82 id=82 data-nosnippet>82</a>
-<a href=#83 id=83 data-nosnippet>83</a>
-<a href=#84 id=84 data-nosnippet>84</a><span class="attr">#[cfg(test)]
-<a href=#85 id=85 data-nosnippet>85</a></span><span class="kw">mod </span>tests {
-<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">use </span>tempfile::TempDir;
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="attr">#[cfg(test)]
+<a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">pub fn </span>new_for_tests(modules_dir: PathBuf, temp_dir: PathBuf) -&gt; <span class="self">Self </span>{
+<a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">use </span>std::fs;
+<a href=#83 id=83 data-nosnippet>83</a>        <span class="comment">// Создаём временный TempDir вручную из пути (trick для тестов)
+<a href=#84 id=84 data-nosnippet>84</a>        // Но проще — использовать реальный TempDir и переопределить пути
+<a href=#85 id=85 data-nosnippet>85</a>        // Однако для простоты: создаём все необходимые поддиректории
+<a href=#86 id=86 data-nosnippet>86</a>        </span><span class="kw">let </span>cache_dir = temp_dir.join(<span class="string">"cache"</span>);
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>metadata_dir = temp_dir.join(<span class="string">"metadata"</span>);
 <a href=#88 id=88 data-nosnippet>88</a>
-<a href=#89 id=89 data-nosnippet>89</a>    <span class="comment">/*#[tokio::test]
-<a href=#90 id=90 data-nosnippet>90</a>    async fn test_storage_manager_creates_dirs() {
-<a href=#91 id=91 data-nosnippet>91</a>        let temp_dir = TempDir::new().unwrap();
-<a href=#92 id=92 data-nosnippet>92</a>        let base_path = temp_dir.path().join("arcella_test");
-<a href=#93 id=93 data-nosnippet>93</a>
-<a href=#94 id=94 data-nosnippet>94</a>        let config = Arc::new(ArcellaConfig {
-<a href=#95 id=95 data-nosnippet>95</a>            base_dir: Some(base_path.clone()),
-<a href=#96 id=96 data-nosnippet>96</a>            config_dir: Some(base_path.join("config")),
-<a href=#97 id=97 data-nosnippet>97</a>            log_dir: Some(base_path.join("log")),
-<a href=#98 id=98 data-nosnippet>98</a>            modules_dir: Some(base_path.join("modules")),
-<a href=#99 id=99 data-nosnippet>99</a>            cache_dir: Some(base_path.join("cache")),
-<a href=#100 id=100 data-nosnippet>100</a>            socket_path: Some(base_path.join("alme")),
-<a href=#101 id=101 data-nosnippet>101</a>        });
-<a href=#102 id=102 data-nosnippet>102</a>
-<a href=#103 id=103 data-nosnippet>103</a>        let storage = StorageManager::new(&amp;config).await.unwrap();
-<a href=#104 id=104 data-nosnippet>104</a>
-<a href=#105 id=105 data-nosnippet>105</a>        assert!(storage.base_dir.exists());
-<a href=#106 id=106 data-nosnippet>106</a>        assert!(storage.config_dir.exists());
-<a href=#107 id=107 data-nosnippet>107</a>        assert!(storage.modules_dir.exists());
-<a href=#108 id=108 data-nosnippet>108</a>        assert!(storage.cache_dir.exists());
-<a href=#109 id=109 data-nosnippet>109</a>
-<a href=#110 id=110 data-nosnippet>110</a>        // Проверка прав доступа для base_dir (только на Unix)
-<a href=#111 id=111 data-nosnippet>111</a>        #[cfg(unix)]
-<a href=#112 id=112 data-nosnippet>112</a>        {
-<a href=#113 id=113 data-nosnippet>113</a>            use std::os::unix::fs::PermissionsExt;
-<a href=#114 id=114 data-nosnippet>114</a>            let perms = std::fs::metadata(&amp;storage.base_dir).unwrap().permissions();
-<a href=#115 id=115 data-nosnippet>115</a>            assert_eq!(perms.mode() &amp; 0o777, 0o700);
-<a href=#116 id=116 data-nosnippet>116</a>        }
-<a href=#117 id=117 data-nosnippet>117</a>    }*/
-<a href=#118 id=118 data-nosnippet>118</a></span>}</code></pre></div></section></main></body></html>
+<a href=#89 id=89 data-nosnippet>89</a>        fs::create_dir_all(<span class="kw-2">&amp;</span>modules_dir).expect(<span class="string">"Failed to create test modules dir"</span>);
+<a href=#90 id=90 data-nosnippet>90</a>        fs::create_dir_all(<span class="kw-2">&amp;</span>cache_dir).expect(<span class="string">"Failed to create test cache dir"</span>);
+<a href=#91 id=91 data-nosnippet>91</a>        fs::create_dir_all(<span class="kw-2">&amp;</span>metadata_dir).expect(<span class="string">"Failed to create test metadata dir"</span>);
+<a href=#92 id=92 data-nosnippet>92</a>
+<a href=#93 id=93 data-nosnippet>93</a>        <span class="comment">// Создаём отдельный TempDir для temp_dir менеджера
+<a href=#94 id=94 data-nosnippet>94</a>        </span><span class="kw">let </span>internal_temp = tempfile::tempdir().expect(<span class="string">"Failed to create internal temp dir"</span>);
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a>        <span class="self">Self </span>{
+<a href=#97 id=97 data-nosnippet>97</a>            cache_dir,
+<a href=#98 id=98 data-nosnippet>98</a>            metadata_dir,
+<a href=#99 id=99 data-nosnippet>99</a>            modules_dir,
+<a href=#100 id=100 data-nosnippet>100</a>            temp_dir: internal_temp,
+<a href=#101 id=101 data-nosnippet>101</a>        }
+<a href=#102 id=102 data-nosnippet>102</a>    }
+<a href=#103 id=103 data-nosnippet>103</a>        
+<a href=#104 id=104 data-nosnippet>104</a>}
+<a href=#105 id=105 data-nosnippet>105</a>
+<a href=#106 id=106 data-nosnippet>106</a><span class="attr">#[cfg(test)]
+<a href=#107 id=107 data-nosnippet>107</a></span><span class="kw">mod </span>tests {
+<a href=#108 id=108 data-nosnippet>108</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">use </span>tempfile::TempDir;
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a>}</code></pre></div></section></main></body></html>

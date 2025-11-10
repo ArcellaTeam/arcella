@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["collect_toml_includes","find_base_dir","find_toml_files_in_dir","is_valid_toml_file_path"],"mod":["config_loader","error","toml","types","warnings"]};
+window.SIDEBAR_ITEMS = {"enum":["ArcellaUtilsError"],"fn":["atomic_rename","copy_files_to_dir","create_temp_subdir","find_base_dir","sync_directory"],"mod":["config_loader","toml","types","warnings"],"type":["ArcellaUtilsResult"]};
