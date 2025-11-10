@@ -26,13 +26,17 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::OnceLock;
 use wasmtime::{
     Engine,
 };
 
 use arcella_types::{
-    manifest::ComponentManifest
+    manifest::{
+        ComponentManifest,
+        ModuleId,
+    },
 };
 use arcella_wasmtime::{
     ArcellaWasmtimeError,
@@ -46,7 +50,7 @@ use crate::{ArcellaError, ArcellaResult};
 // ================================
 
 /// Wrapper to match TOML structure: `[component]`
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct ComponentManifestWrapper {
     component: ComponentManifest,
 }
@@ -169,11 +173,7 @@ impl DeploymentTemplate {
         }
 
         if let Some(ref group) = self.group {
-            if !ComponentManifest::validate_name_format(group) {
-                return Err(ArcellaWasmtimeError::Manifest(
-                    "Invalid group name format".into()
-                ).into());
-            }
+            let _ = ModuleId::from_str(group)?;
         }
 
         Ok(())
@@ -594,7 +594,7 @@ mod tests {
         "#;
         let wrapper: ComponentManifestWrapper = toml::from_str(toml).unwrap();
         assert!(wrapper.component.validate().is_ok());
-        assert_eq!(wrapper.component.id(), "test-component@0.1.0");
+        assert_eq!(wrapper.component.id.to_string(), "test-component@0.1.0");
     }
 
     #[test]
@@ -655,9 +655,8 @@ mod tests {
             name = "invalid name!"
             version = "0.1.0"
         "#;
-        let wrapper: Result<ComponentManifestWrapper, _> = toml::from_str(toml);
-        assert!(wrapper.is_ok());
-        assert!(wrapper.unwrap().component.validate().is_err());
+        let err = toml::from_str::<ComponentManifestWrapper>(toml).unwrap_err();
+        assert!(err.to_string().contains("Invalid module name"));
     } 
 
     #[test]
@@ -680,8 +679,7 @@ mod tests {
         assert!(result.is_some());
 
         let manifest = result.unwrap();
-        assert_eq!(manifest.name, "test-component");
-        assert_eq!(manifest.version, "0.1.0");
+        assert_eq!(manifest.id.to_string(), "test-component@0.1.0");
         assert_eq!(manifest.description, Some("A test component".to_string()));
     }
 

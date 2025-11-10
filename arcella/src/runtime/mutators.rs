@@ -45,7 +45,7 @@ pub struct InstallModule {
 
 impl Mutator<ArcellaState> for InstallModule {
     fn apply(&self, state: &mut ArcellaState) {
-        state.installed_modules.insert(self.manifest.id(), self.manifest.clone());
+        state.installed_modules.insert(self.manifest.id.to_string(), self.manifest.clone());
         // wasm_bytes можно сохранить в storage отдельно
     }
 }
@@ -97,9 +97,7 @@ mod tests {
             let restored: InstallModule = serde_json::from_str(lines[0]).unwrap();
 
             // 4. Проверяем, что восстановленная мутация идентична исходной
-            assert_eq!(restored.manifest.id(), mutation.manifest.id());
-            assert_eq!(restored.manifest.name, mutation.manifest.name);
-            assert_eq!(restored.manifest.version, mutation.manifest.version);
+            assert_eq!(restored.manifest.id, mutation.manifest.id);
             assert_eq!(restored.manifest.description, mutation.manifest.description);
             assert_eq!(restored.manifest.exports, mutation.manifest.exports);
             assert_eq!(restored.manifest.imports, mutation.manifest.imports);
@@ -110,7 +108,7 @@ mod tests {
     fn test_install_module() {
         let mut state = ArcellaState::default();
         let manifest = create_test_manifest().unwrap();
-        let module_id = manifest.id();
+        let module_id = manifest.id.to_string();
 
         let mutation = InstallModule {
             manifest: manifest.clone(),
@@ -128,7 +126,7 @@ mod tests {
     fn test_install_module_idempotent() {
         let mut state = ArcellaState::default();
         let manifest = create_test_manifest().unwrap();
-        let module_id = manifest.id();
+        let module_id = manifest.id.to_string();
 
         let mutation = InstallModule {
             manifest: manifest.clone(),
@@ -188,7 +186,7 @@ mod integration_tests {
         let mut manager = new_tmp_state_manager(&state_dir).await;
 
         let manifest = create_test_manifest().unwrap();
-        let module_id = manifest.id();
+        let module_id = manifest.id.to_string();
 
         let install_mutation = InstallModule {
             manifest: manifest.clone(),

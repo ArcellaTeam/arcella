@@ -21,7 +21,7 @@ use tokio::task::JoinError;
 use ministate::MiniStateError;
 
 use arcella_fs_utils::ArcellaUtilsError;
-use arcella_types::ArcellaTypeError;
+use arcella_types::{ArcellaModuleIdError, ArcellaTypeError};
 use arcella_wasmtime::ArcellaWasmtimeError;
 
 /// The root error type for all Arcella-specific failures.
@@ -75,13 +75,19 @@ pub enum ArcellaError {
     #[error("Module directory already exists on disk: {0}")]
     ModuleDirAlreadyExists(String),
 
+    #[error("Module not installed: {0}")]
+    ModuleNotInstalled(String),
+
     #[error("Arcella Wasmtime error: {0}")]
     ArcellaWasmtimeError (#[from] ArcellaWasmtimeError),    
 
-    #[error("Arcella Wasmtime error: {0}")]
+    #[error("Arcella Utils error: {0}")]
     ArcellaUtilsError (#[from] ArcellaUtilsError),  
 
-    #[error("Arcella Wasmtime error: {0}")]
+    #[error("Arcella ModuleId error: {0}")]
+    ArcellaModuleIdError (#[from] ArcellaModuleIdError),
+
+    #[error("Arcella Type error: {0}")]
     ArcellaTypeError (#[from] ArcellaTypeError),
     
     #[error("MiniState error: {0}")]

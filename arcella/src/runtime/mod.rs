@@ -25,14 +25,21 @@ use wasmtime::{
 use ministate::StateManager;
 
 use arcella_types::{
-    manifest::ComponentManifest,
+    manifest::{
+        ComponentManifest,
+        ModuleId,
+    }
 };
 
 use crate::{
+    ArcellaError,
     ArcellaResult,
     cache,
     config::ArcellaConfig,
-    manifest::ComponentBundle,
+    manifest::{
+        ComponentBundle,
+        DeploymentSpec,
+    },
     storage,
 };
 
@@ -120,7 +127,7 @@ impl ArcellaRuntime{
     pub async fn install_module_from_path(
         &mut self,
         wasm_path: &PathBuf,
-    ) -> ArcellaResult<String> {
+    ) -> ArcellaResult<ModuleId> {
         tracing::info!("Starting installation from: {:?}", wasm_path);
 
         // 1. Validate input package structure
@@ -134,11 +141,23 @@ impl ArcellaRuntime{
         // 3. Parse to obtain module_id
         let engine = wasmtime::Engine::default();
         let bundle = if let Some(ref toml) = staged.component_toml_path {
-            ComponentBundle::from_wasm_and_toml(&engine, &staged.wasm_path, toml)?
+            match ComponentBundle::from_wasm_and_toml(&engine, &staged.wasm_path, toml) {
+                Ok(bundle) => bundle,
+                Err(e) => {
+                    tracing::error!("Failed to parse component manifest: {}", e);
+                    return Err(e);
+                }
+            }
         } else {
-            ComponentBundle::from_wasm_path(&engine, &staged.wasm_path)?
+            match ComponentBundle::from_wasm_path(&engine, &staged.wasm_path) {
+                Ok(bundle) => bundle,
+                Err(e) => {
+                    tracing::error!("Failed to parse component manifest: {}", e);
+                    return Err(e);
+                }
+            }
         };
-        let module_id = bundle.component.id();
+        let module_id = bundle.component.id.clone();
         tracing::info!("Parsed module ID: {}", module_id);
 
         // 4. Check for duplicates (state + disk)
@@ -162,9 +181,15 @@ impl ArcellaRuntime{
         let mutator = InstallModule {
             manifest: bundle.component.clone(),
         };
-        self.state_manager
+        match self.state_manager
             .apply(ArcellaMutation::InstallModule(mutator))
-            .await?;
+            .await {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::error!("Failed to record module installation: {}", e);
+                    return Err(e.into());
+                }
+            };
         tracing::info!("Module installed and recorded in state: {}", module_id);
 
         // 7. Cleanup staging directory
@@ -188,12 +213,14 @@ impl ArcellaRuntime{
         tracing::debug!("Deployment package {:?} validated", deploy_path);
 
         // 2. Stage into anonymous temp directory
-        let staged = prepare_deploy_package_in_temp(&self.storage, validated).await?;
+        let state = self.state_manager.snapshot()
+            .await;
+        let staged = prepare_deploy_package_in_temp(&self.storage, &state, validated).await?;
         tracing::debug!("Deployment staged to: {:?}", staged.package_dir);   
 
         // 3. Parse deployment specification
-        //let spec = DeploymentSpec::from_file(&staged.deployment_toml_path)?;
-        //tracing::info!("Parsed deployment spec: module_id={}, group={}", spec.module_id, spec.group);
+        let spec = DeploymentSpec::from_file(&staged.deployment_toml_path)?;
+        tracing::info!("Parsed deployment spec: module_id={}, group={}", spec.module_id, spec.group);
 
         Ok(("module_id".to_string(), "deploy_id".to_string()))
     }
