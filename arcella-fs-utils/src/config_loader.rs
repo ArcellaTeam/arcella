@@ -39,13 +39,16 @@
 
 use std::path::{Path};
 
-use crate::collect_toml_includes;
-use crate::ConfigLoadWarning; 
-use crate::{ArcellaUtilsError, ArcellaUtilsResult};
-use crate::toml;
-use crate::types::*;
-
 use arcella_types::config::Value as TomlValue;
+
+use crate::{
+    ArcellaUtilsError,
+    ArcellaUtilsResult,
+    ConfigLoadWarning,
+    toml,
+    toml_files::collect_toml_includes,
+    types::*
+};
 
 /// The maximum allowed recursion depth when loading configuration files.
 ///
