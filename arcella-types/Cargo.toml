@@ -17,4 +17,7 @@ thiserror = { workspace = true }
 indexmap = { workspace = true }
 ordered-float = { workspace = true }
 
+[dev-dependencies]
+toml = "0.9.8"
+
 
