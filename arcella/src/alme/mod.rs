@@ -12,7 +12,7 @@ use tokio::sync::{RwLock, broadcast};
 use tokio::task::JoinHandle;
 
 use crate::runtime::ArcellaRuntime;
-use crate::error::Result as ArcellaResult;
+use crate::ArcellaResult;
 
 mod commands;
 mod server;

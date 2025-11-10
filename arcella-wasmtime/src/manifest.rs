@@ -9,10 +9,16 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::str::FromStr;
 use wasmtime::{Engine, component::Component};
 
 use arcella_types::{
-    manifest::{ComponentManifest, ComponentCapabilities, InterfaceList},
+    manifest::{
+        ComponentManifest,
+        ComponentCapabilities,
+        InterfaceList,
+        ModuleId
+    },
     spec::ComponentItemSpec,
 };
 
@@ -47,15 +53,7 @@ pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> Arcell
         .and_then(|s| s.to_str())
         .ok_or_else(|| ArcellaWasmtimeError::Manifest("Invalid .wasm filename".into()))?;
 
-    if !ComponentManifest::validate_module_id(file_stem) {
-        return Err(ArcellaWasmtimeError::Manifest(
-            "Expected 'name@version' filename format for components without component.toml".into(),
-        ));
-    }
-
-    let (name, version) = file_stem
-        .split_once('@')
-        .ok_or_else(|| ArcellaWasmtimeError::Manifest("Expected 'name@version' format".into()))?;
+    let module_id = ModuleId::from_str(file_stem)?;
 
     let component = Component::from_file(engine, wasm_path)
         .map_err(ArcellaWasmtimeError::Wasmtime)?;
@@ -87,8 +85,7 @@ pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> Arcell
         .collect();
 
     let manifest = ComponentManifest {
-        name: name.into(),
-        version: version.into(),
+        id: module_id,
         description: None,
         exports: InterfaceList::from(exports),
         imports: InterfaceList::from(imports),

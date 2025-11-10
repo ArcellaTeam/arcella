@@ -8,7 +8,6 @@
 // except according to those terms.
 
 use std::{
-    collections::{HashMap, HashSet},
     path::{PathBuf},
     sync::Arc,
     time::{Duration, Instant}
@@ -16,7 +15,7 @@ use std::{
 use time::OffsetDateTime;
 use tokio::{
     fs,
-    sync::{RwLock, broadcast},
+    sync::RwLock,
 };
 
 use wasmtime::{
@@ -26,13 +25,23 @@ use wasmtime::{
 use ministate::StateManager;
 
 use arcella_types::{
-    manifest::ComponentManifest,
+    manifest::{
+        ComponentManifest,
+        ModuleId,
+    }
 };
 
-use crate::{storage, cache};
-use crate::config::ArcellaConfig;
-use crate::error::{ArcellaError, Result as ArcellaResult};
-use crate::manifest::ComponentBundle;
+use crate::{
+    ArcellaError,
+    ArcellaResult,
+    cache,
+    config::ArcellaConfig,
+    manifest::{
+        ComponentBundle,
+        DeploymentSpec,
+    },
+    storage,
+};
 
 mod state;
 use state::*;
@@ -42,6 +51,9 @@ use mutators::*;
 
 mod install;
 use install::*;
+
+mod deploy;
+use deploy::*;
 
 struct ArcellaRuntimeEnvironment {
     pub pid: u32,
@@ -115,12 +127,12 @@ impl ArcellaRuntime{
     pub async fn install_module_from_path(
         &mut self,
         wasm_path: &PathBuf,
-    ) -> ArcellaResult<String> {
+    ) -> ArcellaResult<ModuleId> {
         tracing::info!("Starting installation from: {:?}", wasm_path);
 
         // 1. Validate input package structure
         let validated = validate_install_package(wasm_path).await?;
-        tracing::debug!("Package {:?} validated", wasm_path);
+        tracing::debug!("Package validated: wasm={:?}", validated.wasm_path);
 
         // 2. Stage into anonymous temp directory
         let staged = prepare_install_package_in_temp(&self.storage, validated).await?;
@@ -129,11 +141,23 @@ impl ArcellaRuntime{
         // 3. Parse to obtain module_id
         let engine = wasmtime::Engine::default();
         let bundle = if let Some(ref toml) = staged.component_toml_path {
-            ComponentBundle::from_wasm_and_toml(&engine, &staged.wasm_path, toml)?
+            match ComponentBundle::from_wasm_and_toml(&engine, &staged.wasm_path, toml) {
+                Ok(bundle) => bundle,
+                Err(e) => {
+                    tracing::error!("Failed to parse component manifest: {}", e);
+                    return Err(e);
+                }
+            }
         } else {
-            ComponentBundle::from_wasm_path(&engine, &staged.wasm_path)?
+            match ComponentBundle::from_wasm_path(&engine, &staged.wasm_path) {
+                Ok(bundle) => bundle,
+                Err(e) => {
+                    tracing::error!("Failed to parse component manifest: {}", e);
+                    return Err(e);
+                }
+            }
         };
-        let module_id = bundle.component.id();
+        let module_id = bundle.component.id.clone();
         tracing::info!("Parsed module ID: {}", module_id);
 
         // 4. Check for duplicates (state + disk)
@@ -157,9 +181,15 @@ impl ArcellaRuntime{
         let mutator = InstallModule {
             manifest: bundle.component.clone(),
         };
-        self.state_manager
+        match self.state_manager
             .apply(ArcellaMutation::InstallModule(mutator))
-            .await?;
+            .await {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::error!("Failed to record module installation: {}", e);
+                    return Err(e.into());
+                }
+            };
         tracing::info!("Module installed and recorded in state: {}", module_id);
 
         // 7. Cleanup staging directory
@@ -173,12 +203,26 @@ impl ArcellaRuntime{
 
     pub async fn deploy_module_from_path(
         &mut self,
-        wasm_path: &PathBuf,
-    ) -> ArcellaResult<usize> {
+        deploy_path: &PathBuf,
+    ) -> ArcellaResult<(String, String)> {
 
-        tracing::debug!("Runtime: Deploing module from path: {:?}", wasm_path );
+        tracing::info!("Starting deploy from: {:?}", deploy_path);
 
-        Ok(10)
+        // 1. Validate input package structure
+        let validated = validate_deploy_package(deploy_path).await?;
+        tracing::debug!("Deployment package {:?} validated", deploy_path);
+
+        // 2. Stage into anonymous temp directory
+        let state = self.state_manager.snapshot()
+            .await;
+        let staged = prepare_deploy_package_in_temp(&self.storage, &state, validated).await?;
+        tracing::debug!("Deployment staged to: {:?}", staged.package_dir);   
+
+        // 3. Parse deployment specification
+        let spec = DeploymentSpec::from_file(&staged.deployment_toml_path)?;
+        tracing::info!("Parsed deployment spec: module_id={}, group={}", spec.module_id, spec.group);
+
+        Ok(("module_id".to_string(), "deploy_id".to_string()))
     }
 
     pub async fn module_start(

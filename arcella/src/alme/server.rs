@@ -39,7 +39,7 @@ use tokio::time::{timeout, Duration as TokioDuration};
 use arcella_types::alme::proto::{AlmeRequest, AlmeResponse};
 
 use crate::runtime::ArcellaRuntime;
-use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::{ArcellaError, ArcellaResult};
 
 /// Maximum allowed length of an incoming ALME request in bytes.
 /// Requests exceeding this limit will be rejected to prevent resource exhaustion.

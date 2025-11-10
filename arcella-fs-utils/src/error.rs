@@ -31,6 +31,12 @@ pub enum ArcellaUtilsError {
         path: PathBuf,
     },
 
+    /// Invalid argument provided.
+    #[error("Invalid argument: {message}")]
+    InvalidArgument {
+        message: String,
+    },
+
     /// Path not found
     #[error("Path not found: {path:?}")]
     PathNotFound {

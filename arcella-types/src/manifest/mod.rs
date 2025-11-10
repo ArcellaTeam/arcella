@@ -8,15 +8,19 @@
 // except according to those terms.
 
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use std::str::FromStr;
 use std::sync::OnceLock;
 
 use crate::{
-    ArcellaTypeError,
-    ArcellaTypeResult,
+	ArcellaTypeError, 
+	ArcellaTypeResult,
 };
 
 use crate::spec::ComponentItemSpec;
+
+mod module_id;
+pub use module_id::*;
 
 mod interface_list;
 pub use interface_list::*;
@@ -26,45 +30,21 @@ pub use interface_list::*;
 /// The manifest captures **what a component is**, **what it provides**, and **what it needs** —
 /// independently of any specific runtime. It serves three key purposes:
 ///
-/// 1. **Identity**: `name@version` uniquely identifies the component.
+/// 1. **Identity**: `id` (`name@version`) uniquely identifies the component.
 /// 2. **Contract**: `imports` and `exports` define its interface boundary (like a WIT package).
 /// 3. **Intent**: `capabilities` express environmental requirements (WASI, FS, network, etc.).
 ///
-/// This structure is used:
-/// - In `component.toml` for human-authored configs (simple array form),
-/// - In internal state snapshots (detailed object form),
-/// - During linking, validation, and deployment.
-///
-/// Because it supports **dual-format input** (via `InterfaceList`), users can write:
-/// ```toml
-/// imports = ["wasi:cli/stdio@0.2"]
-/// ```
-/// while tools store:
-/// ```json
-/// { "imports": { "wasi:cli/stdio@0.2": { "instance": { "exports": { ... } } } } }
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// This structure supports **three input formats** during deserialization:
+/// - String: `"name@version"` (e.g., in deployment specs)
+/// - Flat object: `{ "name": "...", "version": "...", ... }` (e.g., in `component.toml`)
+/// - Nested object: `{ "id": { "name": "...", "version": "..." }, ... }` (e.g., in JSON state snapshots)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ComponentManifest {
-    /// Human-readable identifier of the component (e.g., `"http-logger"`).
-    ///
-    /// Must:
-    /// - Be non-empty,
-    /// - Contain only ASCII letters, digits, hyphens (`-`), and underscores (`_`),
-    /// - Be unique within its versioned namespace.
-    ///
-    /// This is **not** a machine key — use `id()` for that.
-    pub name: String,
-
-    /// Semantic version of the component (e.g., `"0.1.0"` or `"1.2.3+edge"`).
-    ///
-    /// Used for:
-    /// - Dependency resolution,
-    /// - Hot-reloading (same name, newer version),
-    /// - Canonical component identity (`name@version`).
-    pub version: String,
+    /// Canonical, validated identifier of the component: `name@version`.
+    pub id: ModuleId,
 
     /// Optional short description for documentation or tooling.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
     /// Interfaces this component **provides** to others.
@@ -94,113 +74,114 @@ pub struct ComponentManifest {
     /// - Allocate resources safely.
     #[serde(default)]
     pub capabilities: ComponentCapabilities,
-
-    // Future: metadata (authors, license), annotations, tags, etc.
 }
 
+// ======================================
+// Deserialize supporting THREE formats:
+// 1. String:       "name@version"
+// 2. Flat object:  { "name": "...", "version": "...", ... }
+// 3. Nested object:{ "id": { "name": "...", "version": "..." }, ... }
+// ======================================
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ComponentManifestDeserializeHelper {
+    // Format 1: just a string ID
+    StringId(String),
+
+    // Format 2: nested with explicit "id"
+    Nested {
+        id: ModuleId,
+        #[serde(default)]
+        description: Option<String>,
+        #[serde(default)]
+        exports: InterfaceList,
+        #[serde(default)]
+        imports: InterfaceList,
+        #[serde(default)]
+        capabilities: ComponentCapabilities,
+    },
+
+    // Format 3: flat with "name" and "version"
+    Flat {
+        name: String,
+        version: String,
+        #[serde(default)]
+        description: Option<String>,
+        #[serde(default)]
+        exports: InterfaceList,
+        #[serde(default)]
+        imports: InterfaceList,
+        #[serde(default)]
+        capabilities: ComponentCapabilities,
+    },
+}
+
+impl<'de> Deserialize<'de> for ComponentManifest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        match ComponentManifestDeserializeHelper::deserialize(deserializer)? {
+            // Format 1: string → only id, rest default
+            ComponentManifestDeserializeHelper::StringId(s) => {
+                let id = ModuleId::from_str(&s).map_err(serde::de::Error::custom)?;
+                Ok(ComponentManifest {
+                    id,
+                    description: None,
+                    exports: InterfaceList::default(),
+                    imports: InterfaceList::default(),
+                    capabilities: ComponentCapabilities::default(),
+                })
+            }
+
+            // Format 2: nested object
+            ComponentManifestDeserializeHelper::Nested {
+                id,
+                description,
+                exports,
+                imports,
+                capabilities,
+            } => Ok(ComponentManifest {
+                id,
+                description,
+                exports,
+                imports,
+                capabilities,
+            }),
+
+            // Format 3: flat object (TOML-style)
+            ComponentManifestDeserializeHelper::Flat {
+                name,
+                version,
+                description,
+                exports,
+                imports,
+                capabilities,
+            } => {
+                let id = ModuleId::new(name, version).map_err(serde::de::Error::custom)?;
+                Ok(ComponentManifest {
+                    id,
+                    description,
+                    exports,
+                    imports,
+                    capabilities,
+                })
+            }
+        }
+    }
+}
+
+// ======================================
+// Validation and helpers
+// ======================================
+
 impl ComponentManifest {
-    /// Returns the **canonical component identifier**: `name@version`.
-    ///
-    /// This string is:
-    /// - Unique within a single runtime instance,
-    /// - Validated via `validate_module_id()`,
-    /// - Used internally for registry lookups, deployment, and linking.
-    ///
-    /// Example: `"my-logger@1.2.0+debug"`.
-    pub fn id(&self) -> String {
-        format!("{}@{}", self.name, self.version)
-    }
-
-    /// Validates that a string is a well-formed canonical ID (`name@version`).
-    ///
-    /// Format: `^[a-zA-Z0-9_-]+@\d+\.\d+\.\d+([+-][a-zA-Z0-9.-]+)?$`
-    ///
-    /// Examples:
-    /// - ✅ `"comp@1.0.0"`, `"edge-mod@0.1.0+alpha"`
-    /// - ❌ `"comp v1"`, `"mod@1.0"`
-    pub fn validate_module_id(id: &str) -> bool {
-        static RE: OnceLock<Regex> = OnceLock::new();
-        let re = RE.get_or_init(|| {
-            Regex::new(r"^[a-zA-Z0-9_-]+@\d+\.\d+\.\d+([+-][a-zA-Z0-9.-]+)?$").unwrap()
-        });
-        re.is_match(id)
-    }
-
-    /// Validates component `name` format.
-    ///
-    /// Allowed: ASCII letters, digits, `_`, `-`. No dots, spaces, or Unicode.
-    pub fn validate_name_format(name: &str) -> bool {
-        static RE: OnceLock<Regex> = OnceLock::new();
-        let re = RE.get_or_init(|| {
-            Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap()
-        });
-        re.is_match(name)
-    }
-
-    /// Validates `version` as simplified SemVer (major.minor.patch[+build]).
-    ///
-    /// Pre-release (`-alpha`) is currently **not supported** to reduce complexity.
-    /// Build metadata (`+debug`) is allowed.
-    pub fn validate_version_format(version: &str) -> bool {
-        static RE: OnceLock<Regex> = OnceLock::new();
-        let re = RE.get_or_init(|| {
-            Regex::new(r"^\d+\.\d+\.\d+([+-][a-zA-Z0-9.-]+)?$").unwrap()
-        });
-        re.is_match(version)
-    }
-
-    /// Checks if a string matches the expected WIT interface reference format.
-    ///
-    /// Two forms are accepted:
-    /// - **With version**: `namespace:interface@version` (e.g., `wasi:http@0.2.0`)
-    /// - **Without version**: `namespace:interface` (e.g., `my:custom`)
-    ///
-    /// Interface part may contain `/` for nested paths (e.g., `wasi:cli/stdio`).
-    pub fn validate_interface_format(s: &str) -> bool {
-        static RE_WITH_VERSION: OnceLock<Regex> = OnceLock::new();
-        static RE_WITHOUT_VERSION: OnceLock<Regex> = OnceLock::new();
-        
-        let re1 = RE_WITH_VERSION.get_or_init(|| {
-            Regex::new(r"^[a-zA-Z0-9_-]+:[a-zA-Z0-9_/-]+@[a-zA-Z0-9.+_-]+$").unwrap()
-        });
-        let re2 = RE_WITHOUT_VERSION.get_or_init(|| {
-            Regex::new(r"^[a-zA-Z0-9_-]+:[a-zA-Z0-9_/-]+$").unwrap()
-        });
-        
-        re1.is_match(s) || re2.is_match(s)
-    }
-    
     /// Validates the semantic correctness of the entire manifest.
     ///
-    /// Checks:
-    /// - Non-empty and valid `name` and `version`,
-    /// - Correct format of all interface keys in `imports` and `exports`.
-    ///
-    /// Does **not** validate:
-    /// - Existence of interface specs (that’s a linking concern),
-    /// - Capability feasibility (runtime responsibility).
-    ///
-    /// Returns `Ok(())` if valid, or a descriptive error otherwise.
+    /// Since `id` is a `ModuleId`, `name` and `version` are already valid.
+    /// This method only checks interface formats.
     pub fn validate(&self) -> ArcellaTypeResult<()> {
-        if self.name.is_empty() {
-            return Err(ArcellaTypeError::Manifest("Component name must not be empty".into()));
-        }
-        if self.version.is_empty() {
-            return Err(ArcellaTypeError::Manifest("Component version must not be empty".into()));
-        }
-
-        if !Self::validate_name_format(&self.name) {
-            return Err(ArcellaTypeError::Manifest(
-                "Component name must contain only alphanumeric characters, hyphens, and underscores".into()
-            ));
-        }
-
-        if !Self::validate_version_format(&self.version) {
-            return Err(ArcellaTypeError::Manifest(
-                "Component version must follow semantic versioning format (e.g., 0.1.0)".into()
-            ));
-        }
-
         for key in self.imports.keys() {
             if !Self::validate_interface_format(key) {
                 return Err(ArcellaTypeError::Manifest(
@@ -214,11 +195,35 @@ impl ComponentManifest {
                     format!("Invalid export interface format: {}", key)
                 ));
             }
-        }        
-
+        }
         Ok(())
     }
+
+    /// Checks if a string matches the expected WIT interface reference format.
+    ///
+    /// Two forms are accepted:
+    /// - **With version**: `namespace:interface@version` (e.g., `wasi:http@0.2.0`)
+    /// - **Without version**: `namespace:interface` (e.g., `my:custom`)
+    ///
+    /// Interface part may contain `/` for nested paths (e.g., `wasi:cli/stdio`).
+    pub fn validate_interface_format(s: &str) -> bool {
+        static RE_WITH_VERSION: OnceLock<Regex> = OnceLock::new();
+        static RE_WITHOUT_VERSION: OnceLock<Regex> = OnceLock::new();
+
+        let re1 = RE_WITH_VERSION.get_or_init(|| {
+            Regex::new(r"^[a-zA-Z0-9_-]+:[a-zA-Z0-9_/-]+@[a-zA-Z0-9.+_-]+$").unwrap()
+        });
+        let re2 = RE_WITHOUT_VERSION.get_or_init(|| {
+            Regex::new(r"^[a-zA-Z0-9_-]+:[a-zA-Z0-9_/-]+$").unwrap()
+        });
+
+        re1.is_match(s) || re2.is_match(s)
+    }
 }
+
+// ======================================
+// Capabilities and Resources
+// ======================================
 
 /// Runtime capabilities and environmental requirements of a component.
 ///
@@ -229,19 +234,19 @@ pub struct ComponentCapabilities {
     /// Required WASI preview2 interfaces (e.g., `["wasi:cli/stdio", "wasi:random"]`).
     #[serde(default)]
     pub wasi: Vec<String>,
-    
+
     /// Filesystem paths the component needs to access (e.g., `["/logs", "/config"]`).
     ///
     /// Paths are virtualized; actual mapping is runtime-specific.
     #[serde(default)]
     pub filesystem: Vec<String>,
-    
+
     /// Network access patterns (e.g., `["tcp:localhost:8080", "udp:example.com:53"]`).
     ///
     /// Format is not yet standardized — currently treated as opaque strings.
     #[serde(default)]
     pub network: Vec<String>,
-    
+
     /// Required environment variables (e.g., `["DATABASE_URL", "DEBUG"]`).
     #[serde(default)]
     pub environment: Vec<String>,
@@ -283,63 +288,115 @@ pub struct ComponentSecurity {
     pub allowed_syscalls: Vec<String>,
 }
 
+// ======================================
+// Tests
+// ======================================
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json;
 
     #[test]
-    fn test_validate_module_id() {
-        assert!(ComponentManifest::validate_module_id("my-comp@1.0.0"));
-        assert!(ComponentManifest::validate_module_id("edge@0.1.0+debug"));
-        assert!(!ComponentManifest::validate_module_id("my comp@1.0.0")); // space
-        assert!(!ComponentManifest::validate_module_id("mod@1.0"));       // missing patch
+    fn test_component_manifest_deserialize_three_formats() {
+        // Format 1: string
+        let s = r#""http-logger@0.1.0""#;
+        let m1: ComponentManifest = serde_json::from_str(s).unwrap();
+        assert_eq!(m1.id.to_string(), "http-logger@0.1.0");
+        assert!(m1.description.is_none());
+        assert!(m1.imports.is_empty());
+
+        // Format 2: nested object
+        let json_nested = r#"
+        {
+            "id": {
+                "name": "web-handler",
+                "version": "2.0.0"
+            },
+            "description": "Handles HTTP",
+            "imports": ["wasi:http@0.2.0"]
+        }
+        "#;
+        let m2: ComponentManifest = serde_json::from_str(json_nested).unwrap();
+        assert_eq!(m2.id.to_string(), "web-handler@2.0.0");
+        assert_eq!(m2.description, Some("Handles HTTP".to_string()));
+        assert!(m2.imports.contains_key("wasi:http@0.2.0"));
+
+        // Format 3: flat object (TOML-style)
+        let json_flat = r#"
+        {
+            "name": "auth-service",
+            "version": "1.5.0",
+            "exports": ["auth:verify@1.0"]
+        }
+        "#;
+        let m3: ComponentManifest = serde_json::from_str(json_flat).unwrap();
+        assert_eq!(m3.id.to_string(), "auth-service@1.5.0");
+        assert!(m3.exports.contains_key("auth:verify@1.0"));
     }
 
     #[test]
-    fn test_component_manifest_json_roundtrip() {
-        let mut manifest = ComponentManifest::default();
-        manifest.name = "test".to_string();
-        manifest.version = "1.0.0".to_string();
-        manifest.exports.insert("logger:log@1.0".to_string(), ComponentItemSpec::Unknown { debug: None });
-        manifest.imports.insert("wasi:http@0.2.0".to_string(), ComponentItemSpec::Unknown { debug: None });
+    fn test_component_manifest_from_toml_style() {
+        let toml_input = r#"
+            name = "http-logger"
+            version = "0.1.0"
+            description = "Logs HTTP requests"
+            exports = ["logger:log@1.0"]
+            imports = ["wasi:http/incoming-handler@0.2.0"]
+        "#;
+
+        let manifest: ComponentManifest = toml::from_str(toml_input).unwrap();
+        assert_eq!(manifest.id.name, "http-logger");
+        assert_eq!(manifest.id.version, "0.1.0");
+        assert_eq!(manifest.id.to_string(), "http-logger@0.1.0");
+        assert!(manifest.validate().is_ok());
+    }
+
+    #[test]
+    fn test_invalid_name_rejected() {
+        let toml_input = r#"
+            name = "invalid name!"
+            version = "1.0.0"
+        "#;
+        let err = toml::from_str::<ComponentManifest>(toml_input).unwrap_err();
+        assert!(err.to_string().contains("Invalid module name"));
+    }
+
+    #[test]
+    fn test_invalid_interface_rejected() {
+        let mut manifest = ComponentManifest {
+            id: ModuleId::new("test".into(), "1.0.0".into()).unwrap(),
+            description: None,
+            exports: InterfaceList::default(),
+            imports: InterfaceList::default(),
+            capabilities: ComponentCapabilities::default(),
+        };
+        manifest.imports.insert("bad::interface".into(), ComponentItemSpec::Unknown { debug: None });
+        assert!(manifest.validate().is_err());
+    }
+
+    #[test]
+    fn test_json_roundtrip() {
+        let manifest = ComponentManifest {
+            id: ModuleId::new("test".into(), "1.0.0".into()).unwrap(),
+            description: Some("A test component".into()),
+            exports: {
+                let mut m = InterfaceList::default();
+                m.insert("logger:log@1.0".into(), ComponentItemSpec::Unknown { debug: None });
+                m
+            },
+            imports: {
+                let mut m = InterfaceList::default();
+                m.insert("wasi:http@0.2.0".into(), ComponentItemSpec::Unknown { debug: None });
+                m
+            },
+            capabilities: ComponentCapabilities::default(),
+        };
 
         let json = serde_json::to_string_pretty(&manifest).unwrap();
         eprintln!("JSON:\n{}", json);
 
         let restored: ComponentManifest = serde_json::from_str(&json).unwrap();
         assert_eq!(manifest, restored);
-    }
-
-    #[test]
-    fn test_invalid_interface_format_rejected() {
-        let mut manifest = ComponentManifest {
-            name: "test".to_string(),
-            version: "1.0.0".to_string(),
-            ..Default::default()
-        };
-        manifest.imports.insert("bad::interface".to_string(), ComponentItemSpec::Unknown { debug: None });
-        assert!(manifest.validate().is_err());
-    }
-
-    #[test]
-    fn test_component_manifest_from_array_compat() {
-        // Simulate TOML-style config: interfaces as arrays
-        let json = r#"
-        {
-            "name": "test",
-            "version": "1.0.0",
-            "imports": ["wasi:cli@0.2.0"],
-            "exports": ["foo:bar@1.0"]
-        }
-        "#;
-
-        let manifest: ComponentManifest = serde_json::from_str(json).unwrap();
-
-        assert!(manifest.imports.contains_key("wasi:cli@0.2.0"));
-        assert!(manifest.exports.contains_key("foo:bar@1.0"));
-        assert_eq!(
-            manifest.imports.get("wasi:cli@0.2.0"),
-            Some(&ComponentItemSpec::Unknown { debug: None })
-        );
     }
 }

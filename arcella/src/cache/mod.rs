@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use crate::config::ArcellaConfig;
-use crate::error::{ArcellaError, Result as ArcellaResult};
+use crate::ArcellaResult;
 
 pub struct ModuleCache {
 }

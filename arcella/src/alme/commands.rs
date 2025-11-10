@@ -196,8 +196,9 @@ async fn handle_module_install(
         "module_id": module_id
     });    
 
-    tracing::debug!("Command module:install is complete");
-    AlmeResponse::success("Module install is complete", Some(data))
+    let msg = format!("Module {} is installed", module_id);
+    tracing::debug!(msg);
+    AlmeResponse::success(&msg, Some(data))
 }
 
 async fn handle_module_deploy(
@@ -207,20 +208,21 @@ async fn handle_module_deploy(
     let mut runtime_guard = runtime.write().await;
 
     let path_int = PathBuf::from(path.trim());
-    let module_id = match runtime_guard.deploy_module_from_path(&path_int).await {
+    let (module_id, deployment_id) = match runtime_guard.deploy_module_from_path(&path_int).await {
         Ok(id) => id,
         Err(e) => {
-            tracing::error!("{}", e);
             return AlmeResponse::error(&e.to_string())
         }
     };
 
     let data = serde_json::json!({
-        "module_id": module_id
+        "module_id": module_id,
+        "deployment_id": deployment_id
     });    
 
-    tracing::debug!("Command module:deploy is complete");
-    AlmeResponse::success("Module deploy is complete", Some(data))
+    let msg = format!("Module {} is deployed as {}", module_id, deployment_id);
+    tracing::debug!(msg);
+    AlmeResponse::success(&msg, Some(data))
 }
 
 async fn handle_module_start(
@@ -243,8 +245,9 @@ async fn handle_module_start(
         "status": module_status,
     });    
 
-    tracing::debug!("Command module:start is complete");
-    AlmeResponse::success("Module start is complete", Some(data))
+    let msg = format!("Module {} is started", deployment_id);
+    tracing::debug!(msg);
+    AlmeResponse::success(&msg, Some(data))
 }
 
 async fn handle_module_stop(
@@ -267,6 +270,7 @@ async fn handle_module_stop(
         "status": module_status,
     });    
 
-    tracing::debug!("Command module:stop is complete");
-    AlmeResponse::success("Module stop is complete", Some(data))
+    let msg = format!("Module {} is stopped", deployment_id);
+    tracing::debug!(msg);
+    AlmeResponse::success(&msg, Some(data))
 }
