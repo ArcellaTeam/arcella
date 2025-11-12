@@ -197,7 +197,7 @@ struct DeploymentTemplateWrapper {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeploymentSpec {
     /// Component ID to deploy (e.g., "http-logger@0.1.0")
-    pub module_id: String,
+    pub module_id: ModuleId,
 
     /// Target worker group for this deployment
     pub group: String,
@@ -227,12 +227,6 @@ impl DeploymentSpec {
 
     /// Validates deployment specification.
     pub fn validate(&self) -> ArcellaResult<()> {
-        if self.module_id.is_empty() {
-            return Err(ArcellaWasmtimeError::Manifest(
-                "Module ID must not be empty".into()
-            ).into());
-        }
-
         if self.group.is_empty() {
             return Err(ArcellaWasmtimeError::Manifest(
                 "Group must not be empty".into()
@@ -242,12 +236,6 @@ impl DeploymentSpec {
         if self.replicas == 0 {
             return Err(ArcellaWasmtimeError::Manifest(
                 "Replicas must be at least 1".into()
-            ).into());
-        }
-
-        if !validate_module_id(&self.module_id) {
-            return Err(ArcellaWasmtimeError::Manifest(
-                "Module ID must follow name@version format".into()
             ).into());
         }
 
@@ -311,7 +299,7 @@ pub struct DeploymentOverrides {
 /// Complete deployment configuration ready for execution
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FullDeployment {
-    pub module_id: String,
+    pub module_id: ModuleId,
     pub group: String,
     pub replicas: u32,
     pub isolation: IsolationMode,
@@ -520,14 +508,6 @@ pub fn validate_compatibility(
     Ok(())
 }
 
-pub fn validate_module_id(id: &str) -> bool {
-    static RE: OnceLock<regex::Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        regex::Regex::new(r"^[a-zA-Z0-9_-]+@\d+\.\d+\.\d+([+-][a-zA-Z0-9.-]+)?$").unwrap()
-    });
-    re.is_match(id)
-}
-
 fn validate_isolation_constraints(
     isolation: &IsolationMode,
     trusted: bool,
@@ -600,7 +580,7 @@ mod tests {
     #[test]
     fn test_deployment_spec_validation() {
         let spec = DeploymentSpec {
-            module_id: "test@1.0.0".to_string(),
+            module_id: ModuleId::from_str("test@1.0.0").unwrap(),
             group: "web".to_string(),
             replicas: 3,
             overrides: DeploymentOverrides::default(),
@@ -620,7 +600,7 @@ mod tests {
         };
 
         let spec = DeploymentSpec {
-            module_id: "test@1.0.0".to_string(),
+            module_id: ModuleId::from_str("test@1.0.0").unwrap(),
             group: "web".to_string(),
             replicas: 5,
             overrides: DeploymentOverrides::default(),
@@ -635,7 +615,7 @@ mod tests {
     #[test]
     fn test_main_isolation_constraints() {
         let deployment = FullDeployment {
-            module_id: "test@1.0.0".to_string(),
+            module_id: ModuleId::from_str("test@1.0.0").unwrap(),
             group: "main".to_string(),
             replicas: 2, // This should fail validation
             isolation: IsolationMode::Main,
