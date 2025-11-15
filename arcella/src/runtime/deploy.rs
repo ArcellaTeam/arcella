@@ -19,12 +19,17 @@ use arcella_fs_utils::{
 use crate::{
     ArcellaError,
     ArcellaResult,
-    manifest::{DeploymentSpec, validate_module_id},
+    manifest::DeploymentSpec,
     runtime::state::ArcellaState,
     storage::StorageManager,
 };
 
-/// Represents a validated module package ready for installation.
+use crate::utils::{
+    base_name_from_file_with_ext,
+    validate_base_name,
+};
+
+/// Represents a validated module package ready for deployment.
 #[derive(Debug, Clone)]
 pub struct DeployPackage {
     /// Base directory containing all package files (e.g., staging dir or original dir).
@@ -92,42 +97,28 @@ impl DeployPackage {
 /// Does **not** check if the module is installed — that happens later.
 pub async fn validate_deploy_package(deploy_path: &Path) -> ArcellaResult<DeployPackage> {
     if !deploy_path.is_file() {
-        return Err(ArcellaError::InvalidArgument {
+        let e = ArcellaError::InvalidArgument{
             message: format!("Path is not a file: {:?}", deploy_path),
-        });
+        };
+        tracing::error!("{}", e);
+        return Err(e);
     }
 
-    // Check extension: must end with `.deployment.toml`
-    let file_name = deploy_path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or_else(|| ArcellaError::InvalidArgument {
-            message: "Invalid or non-UTF-8 filename".into(),
-        })?;
-
-    if !file_name.ends_with(".deployment.toml") {
-        return Err(ArcellaError::InvalidArgument {
-            message: format!(
-                "Deployment file must have '.deployment.toml' extension (e.g., 'web.deployment.toml'): {:?}",
-                deploy_path
-            ),
-        });
-    }
-
-    // Check prefix: must be a valid deployment ID
-    let deployment_id = file_name.trim_end_matches(".deployment.toml");
-    if deployment_id.is_empty() {
-        return Err(ArcellaError::InvalidArgument {
-            message: "Deployment filename must have a non-empty prefix (e.g., 'web.deployment.toml')".into(),
-        });
-    }
-
-    // Validate deployment_id format (alphanumeric + safe chars)
-    if !deployment_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
-        return Err(ArcellaError::InvalidArgument {
-            message: "Deployment ID name must contain only alphanumeric, '-', or '_' characters".into(),
-        });
-    }
+    // Extract and validate deployment ID
+    let deployment_id = match base_name_from_file_with_ext(deploy_path, "deployment.toml") {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("{}", e);
+            return Err(e);
+        }
+    };
+    match validate_base_name(&deployment_id) {
+        Ok(_) => (),
+        Err(e) => {
+            tracing::error!("{}", e);
+            return Err(e);
+        }
+    };
 
     Ok(DeployPackage {
         package_dir: None,
@@ -147,15 +138,11 @@ pub async fn prepare_deploy_package_in_temp(
 ) -> ArcellaResult<DeployPackage> {
     // Parse spec early to get module_id
     let spec = package.parse_spec().await?;
-    if !validate_module_id(&spec.module_id) {
-        return Err(ArcellaError::InvalidArgument {
-            message: format!("Invalid module_id in deployment: {}", spec.module_id),
-        });
-    }
+    let module_id = spec.module_id.to_string();
 
     // Ensure module is installed
-    if !state.installed_modules.contains_key(&spec.module_id) {
-        let e = ArcellaError::ModuleNotInstalled(spec.module_id.clone());
+    if !state.installed_modules.contains_key(&module_id) {
+        let e = ArcellaError::ModuleNotInstalled(module_id);
         tracing::warn!("{}", e);
         return Err(e);
     }

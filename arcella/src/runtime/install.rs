@@ -48,6 +48,11 @@ use crate::{
     storage::StorageManager,
 };
 
+use crate::utils::{
+    base_name_from_file_with_ext,
+    sibling_path_with_suffix,
+};
+
 /// Represents a validated module package ready for installation.
 ///
 /// This struct encapsulates all files that belong to a single logical module.
@@ -65,7 +70,7 @@ pub struct InstallPackage {
     /// Original source directory (for diagnostics only; may be `None`).
     pub package_dir: Option<PathBuf>,
 
-    /// Path to the `.wasm` module  always present after validation.
+    /// Path to the `.wasm` module always present after validation.
     pub wasm_path: PathBuf,
 
     /// Optional path to the component manifest (`{stem}.component.toml`).
@@ -238,48 +243,24 @@ pub async fn validate_install_package(wasm_path: &Path) -> ArcellaResult<Install
         return Err(e);
     }
 
-    if wasm_path.extension().map_or(true, |ext| ext != "wasm") {
-        let e = ArcellaError::InvalidArgument{
-            message: format!("File must have .wasm extension: {:?}", wasm_path),
-        };
-        tracing::error!("{}", e);
-        return Err(e);
+    // Validate extension and extract base name
+    match base_name_from_file_with_ext(wasm_path, "wasm") {
+        Ok(_) => (),
+        Err(e) => {
+            tracing::error!("{}", e);
+            return Err(e);
+        }
     }
 
-    let stem = wasm_path.file_stem()
-        .ok_or_else(|| {
-            let e = ArcellaError::InvalidArgument{
-                message: "Invalid filename (no stem)".into(),
-            };
-            tracing::error!("{}", e);
-            e
-        })?;
-
-	// 3. Find '.component.toml'
-    let expected_toml = wasm_path.with_file_name(format!("{}.component.toml",
-		stem.to_string_lossy()));
-
-    let component_toml_path = if expected_toml.exists() {
-        Some(expected_toml)
-    } else {
-        None
-    };
-
-    // 4. Find '.deployment.template.toml'
-    let expected_toml = wasm_path.with_file_name(format!("{}.deployment.template.toml",
-		stem.to_string_lossy()));
-
-    let deployment_template_path = if expected_toml.exists() {
-        Some(expected_toml)
-    } else {
-        None
-    };
+    // Construct expected sibling paths
+    let component_toml_path = sibling_path_with_suffix(wasm_path, ".component.toml");
+    let deployment_template_path = sibling_path_with_suffix(wasm_path, ".deployment.template.toml");    
 
     Ok(InstallPackage {
         package_dir: None,
         wasm_path: wasm_path.to_path_buf(),
-        component_toml_path,
-        deployment_template_path,
+        component_toml_path: component_toml_path.exists().then_some(component_toml_path),
+        deployment_template_path: deployment_template_path.exists().then_some(deployment_template_path),
     })
 }
 
@@ -336,15 +317,16 @@ pub async fn check_module_not_installed(
     modules_dir: &Path,
     module_id: &ModuleId,
 ) -> ArcellaResult<()> {
-    if state.installed_modules.contains_key(&module_id.to_string()) {
-        let e = ArcellaError::ModuleAlreadyInstalled(module_id.to_string());
+    let mod_id = module_id.to_string();
+    if state.installed_modules.contains_key(&mod_id) {
+        let e = ArcellaError::ModuleAlreadyInstalled(mod_id);
         tracing::warn!("{}", e);
         return Err(e);
     }
 
-    let dest_dir = modules_dir.join(&module_id.to_string());
+    let dest_dir = modules_dir.join(&mod_id);
     if dest_dir.exists() {
-        let e = ArcellaError::ModuleDirAlreadyExists(module_id.to_string());
+        let e = ArcellaError::ModuleDirAlreadyExists(mod_id);
         tracing::warn!("{}", e);
         return Err(e);
     }
@@ -636,7 +618,7 @@ mod tests {
             fs::write(&not_wasm, b"nope").unwrap();
 
             let err = validate_install_package(&not_wasm).await.unwrap_err();
-            assert!(err.to_string().contains(".wasm extension"));
+            assert!(err.to_string().contains("not have extension"));
         }
     }
 

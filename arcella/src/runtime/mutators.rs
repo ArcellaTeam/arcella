@@ -58,7 +58,7 @@ pub struct DeployModule {
 
 impl Mutator<ArcellaState> for DeployModule {
     fn apply(&self, state: &mut ArcellaState) {
-        state.deployments.insert(self.spec.module_id.clone(), self.spec.clone());
+        state.deployments.insert(self.spec.module_id.to_string(), self.spec.clone());
     }
 }
 

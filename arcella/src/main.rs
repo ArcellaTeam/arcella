@@ -22,6 +22,7 @@ mod cache;
 mod manifest;
 mod error;
 mod log;
+mod utils;
 
 use error::{ArcellaError, Result as ArcellaResult};
 
