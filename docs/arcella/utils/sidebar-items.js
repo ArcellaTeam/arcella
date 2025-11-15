@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_BASE_NAME_LENGTH"],"fn":["base_name_from_file_with_ext","file_path_from_base_and_extension","sibling_path_with_suffix","validate_base_name"]};
