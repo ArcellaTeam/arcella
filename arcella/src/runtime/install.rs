@@ -70,7 +70,7 @@ pub struct InstallPackage {
     /// Original source directory (for diagnostics only; may be `None`).
     pub package_dir: Option<PathBuf>,
 
-    /// Path to the `.wasm` module  always present after validation.
+    /// Path to the `.wasm` module always present after validation.
     pub wasm_path: PathBuf,
 
     /// Optional path to the component manifest (`{stem}.component.toml`).

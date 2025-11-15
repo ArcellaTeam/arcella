@@ -182,14 +182,29 @@ async fn handle_module_install(
     runtime: &Arc<RwLock<ArcellaRuntime>>,
     path: &str,
 ) -> AlmeResponse {
-    let mut runtime_guard = runtime.write().await;
+    // 1. Briefly acquire a read lock to get Arc references
+    let (storage, cache, state_manager, install_locks) = {
+        let guard = runtime.read().await;
+        (
+            guard.storage.clone(),
+            guard.cache.clone(),
+            guard.state_manager.clone(),
+            guard.install_locks.clone(),
+        )
+    };
 
-    let path_int = PathBuf::from(path.trim());
-    let module_id = match runtime_guard.install_module_from_path(&path_int).await {
+    let path_buf = PathBuf::from(path.trim());
+
+    // 2. Do the heavy lifting without locking the runtime
+    let module_id = match ArcellaRuntime::install_module_from_path(
+        &storage,
+        &cache,
+        &state_manager,
+        &install_locks,
+        &path_buf,
+    ).await {
         Ok(id) => id,
-        Err(e) => {
-            return AlmeResponse::error(&e.to_string())
-        }
+        Err(e) => return AlmeResponse::error(&e.to_string()),
     };
 
     let data = serde_json::json!({
@@ -205,14 +220,29 @@ async fn handle_module_deploy(
     runtime: &Arc<RwLock<ArcellaRuntime>>,
     path: &str,
 ) -> AlmeResponse {
-    let mut runtime_guard = runtime.write().await;
+    // 1. Briefly acquire a read lock to get Arc references
+    let (storage, cache, state_manager, install_locks) = {
+        let guard = runtime.read().await;
+        (
+            guard.storage.clone(),
+            guard.cache.clone(),
+            guard.state_manager.clone(),
+            guard.install_locks.clone(),
+        )
+    };
 
-    let path_int = PathBuf::from(path.trim());
-    let (module_id, deployment_id) = match runtime_guard.deploy_module_from_path(&path_int).await {
+    let path_buf = PathBuf::from(path.trim());
+
+    // 2. Do the heavy lifting without locking the runtime
+    let (module_id, deployment_id) = match ArcellaRuntime::deploy_module_from_path(
+        &storage,
+        &cache,
+        &state_manager,
+        &install_locks,
+        &path_buf,
+    ).await {
         Ok(id) => id,
-        Err(e) => {
-            return AlmeResponse::error(&e.to_string())
-        }
+        Err(e) => return AlmeResponse::error(&e.to_string()),
     };
 
     let data = serde_json::json!({

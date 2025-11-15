@@ -29,7 +29,7 @@ use crate::utils::{
     validate_base_name,
 };
 
-/// Represents a validated module package ready for installation.
+/// Represents a validated module package ready for deployment.
 #[derive(Debug, Clone)]
 pub struct DeployPackage {
     /// Base directory containing all package files (e.g., staging dir or original dir).
