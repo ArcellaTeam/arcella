@@ -75,6 +75,7 @@ pub struct ArcellaRuntime {
     pub config: Arc<ArcellaConfig>,
     pub storage: Arc<storage::StorageManager>,
     pub cache: Arc<cache::ModuleCache>,
+    pub engine: wasmtime::Engine,
     pub install_locks: Arc<Mutex<HashMap<ModuleId, Arc<Mutex<()>>>>>,
     pub environment: Arc<RwLock<ArcellaRuntimeEnvironment>>,
     pub state_manager: Arc<StateManager<ArcellaState, ArcellaMutation>>,
@@ -96,10 +97,19 @@ impl ArcellaRuntime{
         let metadata_dir = storage.metadata_dir.clone();
         let state_manager = StateManager::open(&metadata_dir, "arcella.wal.jsonl").await?;
 
+        let engine = match wasmtime::Engine::new(&wasmtime::Config::new().async_support(true)) {
+            Ok(engine) => engine,
+            Err(e) => {
+                tracing::error!("Failed to create Wasmtime engine: {}", e);
+                return Err(ArcellaError::WasmtimeError(e));
+            }
+        };
+
         let runtime = Self {
             config,
             storage,
             cache,
+            engine,
             install_locks: Arc::new(Mutex::new(HashMap::new())),
             environment: Arc::new(RwLock::new(env)),
             state_manager: Arc::new(state_manager),

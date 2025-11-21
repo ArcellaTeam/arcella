@@ -93,6 +93,9 @@ pub enum ArcellaError {
     #[error("MiniState error: {0}")]
     MiniStateError (#[from] MiniStateError), 
 
+    #[error("Wasmtime error: {0}")]
+    WasmtimeError(#[from] wasmtime::Error),
+
 }
 
 /// Convenient alias for `Result<T, ArcellaError>`.

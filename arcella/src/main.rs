@@ -49,18 +49,36 @@ async fn main() -> ArcellaResult<()> {
     }
 
     // 4. Initialize core subsystems: storage and module cache
-    let storage = Arc::new(storage::StorageManager::new(&config).await?);
+    let storage = match storage::StorageManager::new(&config).await {
+        Ok(storage) => storage,
+        Err(e) => {
+            tracing::error!("Failed to initialize storage: {}", e);
+            return Err(e);
+        }
+    };
+    let storage = Arc::new(storage);
     tracing::debug!("Initialize storage");
+
     let cache = Arc::new(cache::ModuleCache::new(&config).await?);
     tracing::debug!("Initialize cache");
 
-    let runtime = Arc::new(RwLock::new(
-        runtime::ArcellaRuntime::new(config.clone(), storage.clone(), cache.clone()).await?,
-    ));
+    let runtime = match runtime::ArcellaRuntime::new(config.clone(), storage.clone(), cache.clone()).await {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            tracing::error!("Failed to initialize runtime: {}", e);
+            return Err(e);
+        }
+    };
+    let runtime = Arc::new(RwLock::new(runtime));
     tracing::debug!("Initialize core runtime");
 
-
-    let alme_handle = alme::start(runtime.clone()).await?;
+    let alme_handle = match alme::start(runtime.clone()).await {
+        Ok(handle) => handle,
+        Err(e) => {
+            tracing::error!("Failed to start ALME: {}", e);
+            return Err(e);
+        }
+    };
     tracing::info!("Starting ALME server");
 
     tokio::signal::ctrl_c().await?;
