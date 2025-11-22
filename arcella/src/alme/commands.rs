@@ -24,8 +24,13 @@ use tokio::sync::RwLock;
 
 use arcella_types::alme::proto::{AlmeCommand, AlmeRequest, AlmeResponse};
 
-use crate::log;
-use crate::runtime::ArcellaRuntime;
+use crate::{
+    log,
+    runtime::{
+        ArcellaExecutionContext,
+        ArcellaRuntime,
+    },
+};
 
 /// Dispatches an ALME command to the appropriate handler function.
 ///
@@ -183,24 +188,19 @@ async fn handle_module_install(
     path: &str,
 ) -> AlmeResponse {
     // 1. Briefly acquire a read lock to get Arc references
-    let (storage, cache, state_manager, install_locks) = {
-        let guard = runtime.read().await;
-        (
-            guard.storage.clone(),
-            guard.cache.clone(),
-            guard.state_manager.clone(),
-            guard.install_locks.clone(),
-        )
+    let ctx = match ArcellaExecutionContext::from_runtime(&runtime).await {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            tracing::error!("Failed to create execution context: {}", e);
+            return AlmeResponse::error(&e.to_string());
+        }
     };
 
     let path_buf = PathBuf::from(path.trim());
 
     // 2. Do the heavy lifting without locking the runtime
     let module_id = match ArcellaRuntime::install_module_from_path(
-        &storage,
-        &cache,
-        &state_manager,
-        &install_locks,
+        ctx,
         &path_buf,
     ).await {
         Ok(id) => id,
@@ -231,14 +231,19 @@ async fn handle_module_deploy(
         )
     };
 
+    let ctx = match ArcellaExecutionContext::from_runtime(&runtime).await {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            tracing::error!("Failed to create execution context: {}", e);
+            return AlmeResponse::error(&e.to_string());
+        }
+    };
+
     let path_buf = PathBuf::from(path.trim());
 
     // 2. Do the heavy lifting without locking the runtime
     let (module_id, deployment_id) = match ArcellaRuntime::deploy_module_from_path(
-        &storage,
-        &cache,
-        &state_manager,
-        &install_locks,
+        ctx,
         &path_buf,
     ).await {
         Ok(id) => id,
