@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["is_valid_name","is_valid_simple_version"],"struct":["ModuleId"]};

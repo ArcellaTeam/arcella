@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["context","deploy","install","mutators","state"],"struct":["ArcellaRuntime","ArcellaRuntimeEnvironment","ArcellaRuntimeStatus"]};

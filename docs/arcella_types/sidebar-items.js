@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["alme","config","error","manifest","spec"],"trait":["FromName"]};
+window.SIDEBAR_ITEMS = {"enum":["ArcellaTypeError"],"mod":["alme","config","interface_list","manifest","module_id","spec"],"type":["ArcellaTypeResult"]};

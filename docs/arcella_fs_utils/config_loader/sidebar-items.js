@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["load_config_recursive","load_config_recursive_from_content","load_config_recursive_from_file"]};

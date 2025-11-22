@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["ArcellaUtilsError"],"fn":["atomic_rename","copy_files_to_dir","create_temp_subdir","find_base_dir","sync_directory"],"mod":["config_loader","toml","types","warnings"],"type":["ArcellaUtilsResult"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["prepare_deploy_package_in_temp","validate_deploy_package"],"struct":["DeployPackage"]};

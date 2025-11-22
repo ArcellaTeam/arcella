@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":["error","manifest"],"trait":["ComponentItemSpecExt","ComponentTypeExt"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["IsolationMode"],"fn":["load_component_manifest_from_toml","validate_compatibility","validate_isolation_constraints"],"struct":["ComponentBundle","ComponentManifestWrapper","DeploymentOverrides","DeploymentSpec","DeploymentSpecWrapper","DeploymentTemplate","DeploymentTemplateWrapper","FullDeployment","ResourceRequirements","StartupConfig"]};

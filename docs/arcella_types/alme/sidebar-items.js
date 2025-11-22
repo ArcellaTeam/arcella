@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["proto"]};
+window.SIDEBAR_ITEMS = {"enum":["AlmeCommand"],"struct":["AlmeRequest","AlmeResponse"]};
