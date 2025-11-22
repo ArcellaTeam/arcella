@@ -50,6 +50,9 @@ use crate::{
 mod state;
 use state::*;
 
+mod context;
+pub use context::*;
+
 mod mutators;
 use mutators::*;
 
@@ -75,6 +78,7 @@ pub struct ArcellaRuntime {
     pub config: Arc<ArcellaConfig>,
     pub storage: Arc<storage::StorageManager>,
     pub cache: Arc<cache::ModuleCache>,
+    pub engine: wasmtime::Engine,
     pub install_locks: Arc<Mutex<HashMap<ModuleId, Arc<Mutex<()>>>>>,
     pub environment: Arc<RwLock<ArcellaRuntimeEnvironment>>,
     pub state_manager: Arc<StateManager<ArcellaState, ArcellaMutation>>,
@@ -96,10 +100,19 @@ impl ArcellaRuntime{
         let metadata_dir = storage.metadata_dir.clone();
         let state_manager = StateManager::open(&metadata_dir, "arcella.wal.jsonl").await?;
 
+        let engine = match wasmtime::Engine::new(&wasmtime::Config::new().async_support(true)) {
+            Ok(engine) => engine,
+            Err(e) => {
+                tracing::error!("Failed to create Wasmtime engine: {}", e);
+                return Err(ArcellaError::WasmtimeError(e));
+            }
+        };
+
         let runtime = Self {
             config,
             storage,
             cache,
+            engine,
             install_locks: Arc::new(Mutex::new(HashMap::new())),
             environment: Arc::new(RwLock::new(env)),
             state_manager: Arc::new(state_manager),
@@ -131,10 +144,7 @@ impl ArcellaRuntime{
     }
 
     pub async fn install_module_from_path(
-        storage: &Arc<storage::StorageManager>,
-        cache: &Arc<cache::ModuleCache>,
-        state_manager: &Arc<StateManager<ArcellaState, ArcellaMutation>>,
-        install_locks: &Arc<Mutex<HashMap<ModuleId, Arc<Mutex<()>>>>>,
+        ctx: ArcellaExecutionContext,
         wasm_path: &PathBuf,
     ) -> ArcellaResult<ModuleId> {
         tracing::info!("Starting installation from: {:?}", wasm_path);
@@ -142,13 +152,12 @@ impl ArcellaRuntime{
         // 1. Validate and stage input package structure
         let validated = validate_install_package(wasm_path).await?;
         tracing::debug!("Package validated: wasm={:?}", validated.wasm_path);
-        let staged = prepare_install_package_in_temp(storage, validated).await?;
+        let staged = prepare_install_package_in_temp(&ctx.storage, validated).await?;
         tracing::debug!("Package staged to: {:?}", staged.package_dir);   
 
         // 2. Parse bundle
-        let engine = wasmtime::Engine::default();
         let bundle = if let Some(ref toml) = staged.component_toml_path {
-            match ComponentBundle::from_wasm_and_toml(&engine, &staged.wasm_path, toml) {
+            match ComponentBundle::from_wasm_and_toml(&ctx.engine, &staged.wasm_path, toml) {
                 Ok(bundle) => bundle,
                 Err(e) => {
                     tracing::error!("Failed to parse component manifest: {}", e);
@@ -156,7 +165,7 @@ impl ArcellaRuntime{
                 }
             }
         } else {
-            match ComponentBundle::from_wasm_path(&engine, &staged.wasm_path) {
+            match ComponentBundle::from_wasm_path(&ctx.engine, &staged.wasm_path) {
                 Ok(bundle) => bundle,
                 Err(e) => {
                     tracing::error!("Failed to parse component manifest: {}", e);
@@ -169,16 +178,16 @@ impl ArcellaRuntime{
 
         // 3. Fine-grained lock per module_id
         let module_lock = {
-            let mut locks = install_locks.lock().await;
+            let mut locks = ctx.install_locks.lock().await;
             locks.entry(module_id.clone()).or_insert_with(|| Arc::new(Mutex::new(()))).clone()
         };
         let _guard = module_lock.lock().await;        
 
         // 4. Check for duplicates (state + disk)
-        let current_state = state_manager.snapshot().await;
+        let current_state = ctx.state_manager.snapshot().await;
         check_module_not_installed(
             &current_state,
-            &storage.modules_dir,
+            &ctx.storage.modules_dir,
             &module_id,
         ).await?;
         tracing::debug!("Module ID is unique");
@@ -186,7 +195,7 @@ impl ArcellaRuntime{
         // 5. Install files to permanent storage
         install_module_files_to_storage(
             &staged,
-            &storage.modules_dir,
+            &ctx.storage.modules_dir,
             &module_id,
         ).await?;
         tracing::debug!("Files installed to modules directory");
@@ -195,7 +204,7 @@ impl ArcellaRuntime{
         let mutator = InstallModule {
             manifest: bundle.component.clone(),
         };
-        match state_manager
+        match ctx.state_manager
             .apply(ArcellaMutation::InstallModule(mutator))
             .await {
                 Ok(_) => (),
@@ -216,10 +225,7 @@ impl ArcellaRuntime{
     }
 
     pub async fn deploy_module_from_path(
-        storage: &Arc<storage::StorageManager>,
-        cache: &Arc<cache::ModuleCache>,
-        state_manager: &Arc<StateManager<ArcellaState, ArcellaMutation>>,
-        install_locks: &Arc<Mutex<HashMap<ModuleId, Arc<Mutex<()>>>>>,
+        ctx: ArcellaExecutionContext,
         deploy_path: &PathBuf,
     ) -> ArcellaResult<(String, String)> {
 
@@ -230,8 +236,8 @@ impl ArcellaRuntime{
         tracing::debug!("Deployment package {:?} validated", deploy_path);
 
         // 2. Stage into anonymous temp directory
-        let state = state_manager.snapshot().await;
-        let staged = prepare_deploy_package_in_temp(&storage, &state, validated).await?;
+        let state = ctx.state_manager.snapshot().await;
+        let staged = prepare_deploy_package_in_temp(&ctx.storage, &state, validated).await?;
         tracing::debug!("Deployment staged to: {:?}", staged.package_dir);   
 
         // 3. Parse deployment specification

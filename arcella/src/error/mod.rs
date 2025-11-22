@@ -93,6 +93,12 @@ pub enum ArcellaError {
     #[error("MiniState error: {0}")]
     MiniStateError (#[from] MiniStateError), 
 
+    #[error("Wasmtime error: {0}")]
+    WasmtimeError(#[from] wasmtime::Error),
+
+    #[error("Tokio lock error: {0}")]
+    TryLockError(#[from] tokio::sync::TryLockError),
+
 }
 
 /// Convenient alias for `Result<T, ArcellaError>`.
