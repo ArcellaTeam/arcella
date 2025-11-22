@@ -1,6 +1,6 @@
 // arcella/arcella/src/alme/server.rs
 //
-// Copyright (c) 2025 Arcella Team
+// Copyright (c) 2025 Alexey Rybakov, Arcella Team
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE>
 // or the MIT license <LICENSE-MIT>, at your option.
@@ -36,7 +36,7 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{RwLock, broadcast};
 use tokio::time::{timeout, Duration as TokioDuration};
 
-use arcella_types::alme::proto::{AlmeRequest, AlmeResponse};
+use arcella_types::alme::{AlmeRequest, AlmeResponse};
 
 use crate::runtime::ArcellaRuntime;
 use crate::{ArcellaError, ArcellaResult};

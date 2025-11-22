@@ -1,6 +1,6 @@
 // arcella/arcella/src/main.rs
 //
-// Copyright (c) 2025 Arcella Team
+// Copyright (c) 2025 Alexey Rybakov, Arcella Team
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE>
 // or the MIT license <LICENSE-MIT>, at your option.
@@ -10,21 +10,18 @@
 use clap::Parser;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-//use wasmtime::*;
-//use wasmtime_wasi::{p1, WasiCtxBuilder};
-use wat;
 
+use arcella_core::{
+    cache,
+    config,
+    runtime,
+    storage,
+    ArcellaError,
+    ArcellaResult,
+};    
+    
 mod alme;
-mod runtime;
-mod config;
-mod storage;
-mod cache;
-mod manifest;
-mod error;
 mod log;
-mod utils;
-
-use error::{ArcellaError, Result as ArcellaResult};
 
 /// Arcella: Modular WebAssembly Runtime
 #[derive(Parser, Debug)]

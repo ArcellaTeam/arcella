@@ -1,4 +1,4 @@
-// arcella/arcella-types/src/lib.rs
+// arcella/arcella-core/src/lib.rs
 //
 // Copyright (c) 2025 Alexey Rybakov, Arcella Team
 //
@@ -7,12 +7,13 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub mod alme;
 pub mod config;
-pub mod manifest;
-pub mod module_id;
-pub mod interface_list;
-pub mod spec;
-
+pub mod runtime;
+pub mod storage;
+pub mod cache;
+mod manifest;
 mod error;
-pub use error::{ArcellaError as ArcellaTypeError, ArcellaResult as ArcellaTypeResult};
+mod utils;
+mod wasmtime;
+
+pub use error::{ArcellaError, ArcellaResult};

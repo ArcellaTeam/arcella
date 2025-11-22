@@ -1,6 +1,6 @@
 // arcella/arcella-cli/src/main.rs
 //
-// Copyright (c) 2025 Arcella Team
+// Copyright (c) 2025 Alexey Rybakov, Arcella Team
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE>
 // or the MIT license <LICENSE-MIT>, at your option.
@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 
-use arcella_types::alme::proto::{AlmeCommand, AlmeRequest, AlmeResponse};
+use arcella_types::alme::{AlmeCommand, AlmeRequest, AlmeResponse};
 
 /// Arcella CLI — управление runtime'ом через ALME
 #[derive(Parser)]
