@@ -7,33 +7,26 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+arcella-core = { workspace = true }
 arcella-types = { path = "../arcella-types" }
-arcella-fs-utils = { path = "../arcella-fs-utils" }
-arcella-wasmtime = { path = "../arcella-wasmtime" }
-ministate = { workspace = true }
-#walmq = { workspace = true }
-anyhow = { workspace = true }
 clap = { workspace = true }
-futures = { workspace = true }
-indexmap = { workspace = true }
-ordered-float = { workspace = true }
-regex = { workspace = true }
+#futures = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tempfile = { workspace = true }
 time = { workspace = true }
-thiserror = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-subscriber = { workspace = true }
-wasmtime = { workspace = true }
-wat = { workspace = true }
+#wasmtime = { workspace = true }
+#wat = { workspace = true }
 
 [[test]]
 name = "integration_tests"
 
 [dev-dependencies]
+indexmap = "2.12.0"
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 wasmtime-wasi = { workspace = true }

@@ -1,0 +1,36 @@
+[package]
+name = "arcella-core"
+version = "0.1.0"
+rust-version = "1.75"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Modular, secure WebAssembly platform for building component-based applications"
+keywords = ["wasm", "webassembly", "runtime", "modular", "component-model"]
+categories = ["wasm", "development-tools", "embedded"]
+
+[dependencies]
+arcella-types = { workspace = true }
+ministate = { workspace = true }
+dirs =  { workspace = true }
+futures = { workspace = true }
+indexmap = { workspace = true }
+ordered-float = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+time = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+toml = { workspace = true }
+toml_edit =  { workspace = true }
+tracing = { workspace = true }
+wasmtime = { workspace = true }
+uuid =  { workspace = true }
+wat = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+
+

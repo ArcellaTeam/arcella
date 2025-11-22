@@ -1,4 +1,4 @@
-// arcella-types/src/module_id.rs
+// arcella/arcella-types/src/module_id.rs
 //
 // Copyright (c) 2025 Alexey Rybakov, Arcella Team
 //

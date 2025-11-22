@@ -1,6 +1,6 @@
-// arcella/arcella-types/src/manifest/mod.rs
+// arcella/arcella-types/src/manifest.rs
 //
-// Copyright (c) 2025 Arcella Team
+// Copyright (c) 2025 Alexey Rybakov, Arcella Team
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE>
 // or the MIT license <LICENSE-MIT>, at your option.

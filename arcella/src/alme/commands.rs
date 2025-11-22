@@ -1,6 +1,6 @@
 // arcella/arcella/src/alme/commands.rs
 //
-// Copyright (c) 2025 Arcella Team
+// Copyright (c) 2025 Alexey Rybakov, Arcella Team
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE>
 // or the MIT license <LICENSE-MIT>, at your option.
@@ -17,12 +17,11 @@
 //! The entry point is [`dispatch_command`], which is called by the ALME server
 //! for every valid incoming request.
 
-use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use arcella_types::alme::proto::{AlmeCommand, AlmeRequest, AlmeResponse};
+use arcella_types::alme::{AlmeCommand, AlmeRequest, AlmeResponse};
 
 use crate::{
     log,
@@ -221,16 +220,6 @@ async fn handle_module_deploy(
     path: &str,
 ) -> AlmeResponse {
     // 1. Briefly acquire a read lock to get Arc references
-    let (storage, cache, state_manager, install_locks) = {
-        let guard = runtime.read().await;
-        (
-            guard.storage.clone(),
-            guard.cache.clone(),
-            guard.state_manager.clone(),
-            guard.install_locks.clone(),
-        )
-    };
-
     let ctx = match ArcellaExecutionContext::from_runtime(&runtime).await {
         Ok(ctx) => ctx,
         Err(e) => {
