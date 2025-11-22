@@ -17,8 +17,6 @@ use crate::{
 	ArcellaTypeResult,
 };
 
-use crate::spec::ComponentItemSpec;
-
 use crate::module_id::*;
 
 use crate::interface_list::*;
@@ -294,6 +292,7 @@ pub struct ComponentSecurity {
 mod tests {
     use super::*;
     use serde_json;
+    use crate::spec::ComponentItemSpec;
 
     #[test]
     fn test_component_manifest_deserialize_three_formats() {
