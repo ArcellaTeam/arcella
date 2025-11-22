@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-arcella-core = { workspace = true }
+arcella-core = { path = "../arcella-core"}
 arcella-types = { path = "../arcella-types" }
 clap = { workspace = true }
 #futures = { workspace = true }

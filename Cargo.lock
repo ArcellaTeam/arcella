@@ -128,6 +128,7 @@ name = "arcella-cli"
 version = "0.2.2"
 dependencies = [
  "anyhow",
+ "arcella-core",
  "arcella-types",
  "clap",
  "dirs",

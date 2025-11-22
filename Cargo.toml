@@ -16,7 +16,6 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/ArcellaTeam/arcella/"
 
 [workspace.dependencies]
-arcella-core = "0.1.0"
 arcella-types = "0.1.1"
 flexicon = "0.1.0"
 ministore = "0.1.3"
