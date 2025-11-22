@@ -8,7 +8,7 @@ repository.workspace = true
 
 [dependencies]
 arcella-core = { path = "../arcella-core"}
-arcella-types = { path = "../arcella-types" }
+arcella-types = { workspace = true }
 clap = { workspace = true }
 #futures = { workspace = true }
 serde = { workspace = true }
