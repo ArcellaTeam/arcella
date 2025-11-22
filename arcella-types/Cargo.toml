@@ -1,12 +1,15 @@
 # arcella/arcella-types/Cargo.toml
 [package]
 name = "arcella-types"
-version = "0.1.0"
+version = "0.1.1"
+rust-version = "1.75"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Arcella types library"
+description = "Core data types and manifests for the Arcella WebAssembly runtime"
+keywords = ["wasm", "webassembly", "component-model", "manifest", "types"]
+categories = ["wasm", "development-tools"]
 
 [dependencies]
 flexicon = { workspace = true, features = ["serde"] }

@@ -146,6 +146,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "arcella-core"
+version = "0.1.0"
+dependencies = [
+ "arcella-types",
+ "futures",
+ "indexmap",
+ "ordered-float",
+ "serde",
+ "tokio",
+ "toml 0.9.8",
+]
+
+[[package]]
 name = "arcella-fs-utils"
 version = "0.1.0"
 dependencies = [
@@ -163,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "arcella-types"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flexicon",
  "indexmap",

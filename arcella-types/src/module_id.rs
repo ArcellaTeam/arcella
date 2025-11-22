@@ -1,6 +1,6 @@
-// arcella-types/src/manifest/module_id.rs
+// arcella-types/src/module_id.rs
 //
-// Copyright (c) 2025 Arcella Team
+// Copyright (c) 2025 Alexey Rybakov, Arcella Team
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE>
 // or the MIT license <LICENSE-MIT>, at your option.
@@ -13,7 +13,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::sync::OnceLock;
 
-use crate::ArcellaModuleIdError;
+use crate::error::{ArcellaError, ArcellaResult};
 
 /// Unique identifier for an installed module, in the form `name@version`.
 ///
@@ -30,12 +30,12 @@ pub struct ModuleId {
 
 impl ModuleId {
     /// Creates a new `ModuleId` after validating name and version.
-    pub fn new(name: String, version: String) -> Result<Self, ArcellaModuleIdError> {
+    pub fn new(name: String, version: String) -> ArcellaResult<Self> {
         if !is_valid_name(&name) {
-            return Err(ArcellaModuleIdError::InvalidName(name));
+            return Err(ArcellaError::InvalidModuleIdName(name));
         }
         if !is_valid_simple_version(&version) {
-            return Err(ArcellaModuleIdError::InvalidVersion(version));
+            return Err(ArcellaError::InvalidModuleIdVersion(version));
         }
         Ok(ModuleId { name, version })
     }
@@ -53,7 +53,7 @@ impl fmt::Display for ModuleId {
 }
 
 impl FromStr for ModuleId {
-    type Err = ArcellaModuleIdError;
+    type Err = ArcellaError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         static RE: OnceLock<Regex> = OnceLock::new();
@@ -63,7 +63,7 @@ impl FromStr for ModuleId {
             Regex::new(r"^(?P<name>[a-zA-Z0-9_-]+)@(?P<version>\d+\.\d+\.\d+)$").unwrap()
         });
 
-        re.captures(s).ok_or_else(|| ArcellaModuleIdError::InvalidFormat(s.to_string()))
+        re.captures(s).ok_or_else(|| ArcellaError::InvalidModuleIdFormat(s.to_string()))
             .and_then(|caps| {
                 let name = caps.name("name").unwrap().as_str().to_string();
                 let version = caps.name("version").unwrap().as_str().to_string();
@@ -243,6 +243,6 @@ mod tests {
     fn test_module_id_deserialize_invalid_struct() {
         let json = r#"{"name":"in valid","version":"1.0.0"}"#;
         let err = serde_json::from_str::<ModuleId>(json).unwrap_err();
-        assert!(err.to_string().contains("Invalid module name"));
+        assert!(err.to_string().contains("Invalid module ID name"));
     }
 }

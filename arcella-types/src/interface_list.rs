@@ -11,10 +11,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
-use crate::FromName;
-use flexicon::adaptive::NamedMap;
+use flexicon::adaptive::{FromName, NamedMap};
 
-use crate::manifest::ComponentItemSpec;
+use crate::spec::ComponentItemSpec;
 
 /// `FromName` impl for `ComponentItemSpec` to enable `NamedMap` dual-format input.
 impl FromName for ComponentItemSpec {

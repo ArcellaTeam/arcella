@@ -19,11 +19,9 @@ use crate::{
 
 use crate::spec::ComponentItemSpec;
 
-mod module_id;
-pub use module_id::*;
+use crate::module_id::*;
 
-mod interface_list;
-pub use interface_list::*;
+use crate::interface_list::*;
 
 /// A portable, human-readable descriptor of a WebAssembly component.
 ///
@@ -359,7 +357,7 @@ mod tests {
             version = "1.0.0"
         "#;
         let err = toml::from_str::<ComponentManifest>(toml_input).unwrap_err();
-        assert!(err.to_string().contains("Invalid module name"));
+        assert!(err.to_string().contains("Invalid module ID name"));
     }
 
     #[test]
