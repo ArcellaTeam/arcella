@@ -12,6 +12,7 @@ pub mod runtime;
 pub mod storage;
 pub mod cache;
 mod manifest;
+mod engine;
 mod error;
 mod utils;
 mod wasmtime;
