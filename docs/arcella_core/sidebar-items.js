@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ArcellaError"],"mod":["cache","config","runtime","storage"],"type":["ArcellaResult"]};
+window.SIDEBAR_ITEMS = {"enum":["ArcellaError"],"mod":["cache","config","engine","runtime","storage"],"type":["ArcellaResult"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["WasmEngineConfigBuilderError","WasmFeature","WasmFeatureGroup"],"struct":["SupportedFeature","WasmEngineCompatibilityReport","WasmEngineConfig","WasmEngineConfigBuilder"],"trait":["WasmEngine","WasmEngineCapabilities"]};
