@@ -96,6 +96,12 @@ pub enum ArcellaError {
     #[error("Tokio lock error: {0}")]
     TryLockError(#[from] tokio::sync::TryLockError),
 
+    #[error("Memory too small: {0}")]
+    MemoryTooSmall(u32),
+
+    #[error("Memory too small: {0}")]
+    MemoryTooLarge(u32),
+
 }
 
 /// Convenient alias for `Result<T, ArcellaError>`.
