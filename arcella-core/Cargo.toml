@@ -13,6 +13,7 @@ categories = ["wasm", "development-tools", "embedded"]
 [dependencies]
 arcella-types = { workspace = true }
 ministate = { workspace = true }
+derive_builder = { workspace = true }
 dirs =  { workspace = true }
 futures = { workspace = true }
 indexmap = { workspace = true }
