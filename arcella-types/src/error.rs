@@ -30,5 +30,5 @@ pub enum ArcellaError {
 
 }
 
-/// Result type alias for `arcella-wasmtime` operations.
+/// Result type alias
 pub type ArcellaResult<T> = std::result::Result<T, ArcellaError>;

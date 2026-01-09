@@ -1,7 +1,7 @@
 # arcella/arcella-types/Cargo.toml
 [package]
 name = "arcella-types"
-version = "0.1.1"
+version = "0.1.2"
 rust-version = "1.75"
 authors.workspace = true
 edition.workspace = true

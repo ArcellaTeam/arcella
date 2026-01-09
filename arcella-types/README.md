@@ -1,12 +1,12 @@
 # arcella-types
 
-[![Crates.io](https://img.shields.io/crates/v/arcella-types)](https://crates.io/crates/arcella-types)
-[![Docs.rs](https://img.shields.io/docsrs/arcella-types)](https://docs.rs/arcella-types)
-[![License](https://img.shields.io/crates/l/arcella-types)](./LICENSE-APACHE)
+[![Crates.io](https://img.shields.io/crates/v/arcella-types.svg)](https://crates.io/crates/arcella-types)
+[![Docs.rs](https://img.shields.io/docsrs/arcella-types.svg)](https://docs.rs/arcella-types)
+[![License: Apache-2.0/MIT](https://img.shields.io/badge/license-Apache%202.0%20%7C%20MIT-blue.svg)](https://github.com/ArcellaTeam/arcella)
 
 **Core data types and manifests for the Arcella WebAssembly runtime.**
 
-This crate defines the **shared contract** used across the [Arcella](https://github.com/your-org/arcella) platform — a modular, secure runtime for WebAssembly Component Model and WASI applications.
+This crate defines the **shared contract** used across the [Arcella](https://github.com/ArcellaTeam/arcella) platform — a modular, secure runtime for WebAssembly Component Model and WASI applications.
 
 It is designed to be:
 - ✅ **Pure data**: no runtime logic, no I/O, no external engine dependencies.
