@@ -11,7 +11,9 @@ keywords = ["wasm", "webassembly", "runtime", "modular", "component-model"]
 categories = ["wasm", "development-tools", "embedded"]
 
 [dependencies]
+arcella-engine = { workspace = true }
 arcella-types = { workspace = true }
+arcella-wasmtime = { workspace = true }
 ministate = { workspace = true }
 derive_builder = { workspace = true }
 dirs =  { workspace = true }

@@ -11,10 +11,8 @@ pub mod config;
 pub mod runtime;
 pub mod storage;
 pub mod cache;
-pub mod engine;
 mod manifest;
 mod error;
 mod utils;
-mod wasmtime;
 
 pub use error::{ArcellaError, ArcellaResult};

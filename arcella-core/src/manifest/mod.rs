@@ -37,8 +37,7 @@ use arcella_types::{
     manifest::ComponentManifest,
 };
 
-use crate::wasmtime::{
-    ArcellaWasmtimeError,
+use arcella_wasmtime::{
     manifest,
 };
 
@@ -65,7 +64,7 @@ pub fn load_component_manifest_from_toml(path: &Path) -> ArcellaResult<Option<Co
         .map_err(|e| ArcellaError::IoWithPath { source: e, path: path.into() })?; 
 
     let wrapper: ComponentManifestWrapper = toml::from_str(&content)
-        .map_err(|e| ArcellaWasmtimeError::Manifest(e.to_string()))?;
+        .map_err(|e| ArcellaError::ManifestError(e.to_string()))?;
 
     let manifest = wrapper.component;
     manifest.validate()?;
@@ -139,7 +138,7 @@ impl DeploymentTemplate {
         let content = std::fs::read_to_string(path)
             .map_err(|e| ArcellaError::IoWithPath{source: e, path: path.into()})?;
         let wrapper: DeploymentTemplateWrapper =
-            toml::from_str(&content).map_err(|e| ArcellaWasmtimeError::Manifest(e.to_string()))?;
+            toml::from_str(&content).map_err(|e| ArcellaError::ManifestError(e.to_string()))?;
         
         let template = wrapper.deployment;
         template.validate()?;
@@ -166,7 +165,7 @@ impl DeploymentTemplate {
         )?;
 
         if self.group.is_some() && self.isolation != IsolationMode::Worker {
-            return Err(ArcellaWasmtimeError::Manifest(
+            return Err(ArcellaError::ManifestError(
                 "Group can only be specified for worker isolation".into(),
             ).into());
         }
@@ -216,7 +215,7 @@ impl DeploymentSpec {
             .map_err(|e| ArcellaError::IoWithPath{source: e, path: path.into()})?;
         
         let wrapper: DeploymentSpecWrapper =
-            toml::from_str(&content).map_err(|e| ArcellaWasmtimeError::Manifest(e.to_string()))?;
+            toml::from_str(&content).map_err(|e| ArcellaError::ManifestError(e.to_string()))?;
         
         let spec = wrapper.deployment;
         spec.validate()?;
@@ -227,13 +226,13 @@ impl DeploymentSpec {
     /// Validates deployment specification.
     pub fn validate(&self) -> ArcellaResult<()> {
         if self.group.is_empty() {
-            return Err(ArcellaWasmtimeError::Manifest(
+            return Err(ArcellaError::ManifestError(
                 "Group must not be empty".into()
             ).into());
         }
 
         if self.replicas == 0 {
-            return Err(ArcellaWasmtimeError::Manifest(
+            return Err(ArcellaError::ManifestError(
                 "Replicas must be at least 1".into()
             ).into());
         }
@@ -317,7 +316,7 @@ impl FullDeployment {
         )?;
 
         if self.isolation == IsolationMode::Main && self.replicas != 1 {
-            return Err(ArcellaWasmtimeError::Manifest(
+            return Err(ArcellaError::ManifestError(
                 "Main isolation supports only 1 replica".into()
             ).into());
         }
@@ -398,14 +397,14 @@ impl ResourceRequirements {
     pub fn validate(&self) -> ArcellaResult<()> {
         if let Some(mem) = self.memory_mb {
             if mem == 0 {
-                return Err(ArcellaWasmtimeError::Manifest(
+                return Err(ArcellaError::ManifestError(
                     "Memory must be at least 1 MB".into()
                 ).into());
             }
         }
         if let Some(fuel) = self.fuel {
             if fuel == 0 {
-                return Err(ArcellaWasmtimeError::Manifest(
+                return Err(ArcellaError::ManifestError(
                     "Fuel must be at least 1".into()
                 ).into());
             }
@@ -499,7 +498,7 @@ pub fn validate_compatibility(
 
     // Check if async component is deployed in sync mode
     if !component.exports.is_empty() && !deployment.r#async {
-        return Err(ArcellaWasmtimeError::Manifest(
+        return Err(ArcellaError::ManifestError(
             "Component exports but deployment is sync".into()
         ).into());
     }
@@ -513,12 +512,12 @@ fn validate_isolation_constraints(
     r#async: bool,
 ) -> ArcellaResult<()> {
     if trusted && *isolation != IsolationMode::Main {
-        return Err(ArcellaWasmtimeError::Manifest(
+        return Err(ArcellaError::ManifestError(
             "Only 'main' isolation can be trusted".into()
         ).into());
     }
     if *isolation == IsolationMode::Main && !r#async {
-        return Err(ArcellaWasmtimeError::Manifest(
+        return Err(ArcellaError::ManifestError(
             "'main' isolation requires async = true".into()
         ).into());
     }

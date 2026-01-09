@@ -95,7 +95,7 @@ impl ArcellaRuntime{
             Ok(engine) => engine,
             Err(e) => {
                 tracing::error!("Failed to create Wasmtime engine: {}", e);
-                return Err(ArcellaError::WasmtimeError(e));
+                return Err(ArcellaError::RuntimeError(e.to_string()));
             }
         };
 

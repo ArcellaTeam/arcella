@@ -18,15 +18,26 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tokio::task::JoinError;
 
+use arcella_engine::ArcellaEngineError;
 use arcella_types::ArcellaTypeError;
-use crate::wasmtime::ArcellaWasmtimeError;
 use ministate::MiniStateError;
 
-use crate::utils::ArcellaUtilsError;
+use crate::{
+    utils::ArcellaUtilsError,
+};
 
 /// The root error type for all Arcella-specific failures.
 #[derive(Error, Debug)]
 pub enum ArcellaError {
+    #[error("Arcella Engine error: {0}")]
+    ArcellaEngineError (#[from] ArcellaEngineError),    
+
+    #[error("Arcella Type error: {0}")]
+    ArcellaTypeError (#[from] ArcellaTypeError),
+
+    #[error("Arcella Utils error: {0}")]
+    ArcellaUtilsError (#[from] ArcellaUtilsError),  
+
     /// General-purpose error for unexpected conditions.
     #[error("Internal error: {0}")]
     Internal(String),
@@ -48,10 +59,6 @@ pub enum ArcellaError {
         message: String,
     },
 
-    /// Failed to parse WebAssembly Text Format (`.wat`).
-    #[error("WAT parsing error: {0}")]
-    Wat(#[from] wat::Error),
-
     /// Configuration loading or parsing error.
     #[error("Config error: {0}")]
     Config(String),
@@ -64,9 +71,11 @@ pub enum ArcellaError {
     #[error("Task join error: {0}")]
     Join(#[from] JoinError),
 
-    /// Runtime error.
-    #[error("Runtime error: {0}")]
-    RuntimeError(String),
+    #[error("Manifest error: {0}")]
+    ManifestError(String),
+
+    #[error("MiniState error: {0}")]
+    MiniStateError (#[from] MiniStateError), 
 
     /// Module already installed.
     #[error("Module already installed: {0}")]
@@ -78,29 +87,16 @@ pub enum ArcellaError {
     #[error("Module not installed: {0}")]
     ModuleNotInstalled(String),
 
-    #[error("Arcella Wasmtime error: {0}")]
-    ArcellaWasmtimeError (#[from] ArcellaWasmtimeError),    
-
-    #[error("Arcella Utils error: {0}")]
-    ArcellaUtilsError (#[from] ArcellaUtilsError),  
-
-    #[error("Arcella Type error: {0}")]
-    ArcellaTypeError (#[from] ArcellaTypeError),
-    
-    #[error("MiniState error: {0}")]
-    MiniStateError (#[from] MiniStateError), 
-
-    #[error("Wasmtime error: {0}")]
-    WasmtimeError(#[from] wasmtime::Error),
+    /// Runtime error.
+    #[error("Runtime error: {0}")]
+    RuntimeError(String),
 
     #[error("Tokio lock error: {0}")]
     TryLockError(#[from] tokio::sync::TryLockError),
 
-    #[error("Memory too small: {0}")]
-    MemoryTooSmall(u32),
-
-    #[error("Memory too small: {0}")]
-    MemoryTooLarge(u32),
+    /// Failed to parse WebAssembly Text Format (`.wat`).
+    #[error("WAT parsing error: {0}")]
+    Wat(#[from] wat::Error),
 
 }
 
