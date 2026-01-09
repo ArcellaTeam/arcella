@@ -1,0 +1,18 @@
+[package]
+name = "arcella-engine"
+version = "0.1.0"
+rust-version = "1.75"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "WebAssembly engine-agnostic interface for modular, secure, and portable WASM runtimes"
+keywords = ["wasm", "webassembly", "runtime", "modular", "component-model"]
+categories = ["wasm", "development-tools", "embedded"]
+
+[dependencies]
+arcella-types = { workspace = true }
+derive_builder = { workspace = true }
+thiserror = { workspace = true }
+
+
