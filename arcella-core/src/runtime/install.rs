@@ -240,7 +240,7 @@ pub async fn validate_install_package(wasm_path: &Path) -> ArcellaResult<Install
         Ok(_) => (),
         Err(e) => {
             tracing::error!("{}", e);
-            return Err(ArcellaError::ArcellaUtilsError(e));
+            return Err(ArcellaError::UtilsError(e));
         }
     }
 

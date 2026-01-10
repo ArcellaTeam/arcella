@@ -14,7 +14,7 @@ pub enum ArcellaError {
     
     /// Invalid or missing module manifest.
     #[error("Manifest error: {0}")]
-    Manifest(String),
+    ManifestError(String),
 
     /// Invalid module ID format.
     #[error("Invalid module ID format: {0}")]

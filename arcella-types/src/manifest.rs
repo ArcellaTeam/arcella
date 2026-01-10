@@ -180,14 +180,14 @@ impl ComponentManifest {
     pub fn validate(&self) -> ArcellaTypeResult<()> {
         for key in self.imports.keys() {
             if !Self::validate_interface_format(key) {
-                return Err(ArcellaTypeError::Manifest(
+                return Err(ArcellaTypeError::ManifestError(
                     format!("Invalid import interface format: {}", key)
                 ));
             }
         }
         for key in self.exports.keys() {
             if !Self::validate_interface_format(key) {
-                return Err(ArcellaTypeError::Manifest(
+                return Err(ArcellaTypeError::ManifestError(
                     format!("Invalid export interface format: {}", key)
                 ));
             }

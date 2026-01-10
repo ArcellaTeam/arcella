@@ -29,22 +29,8 @@ use crate::{
 /// The root error type for all Arcella-specific failures.
 #[derive(Error, Debug)]
 pub enum ArcellaError {
-    #[error("Arcella Engine error: {0}")]
-    ArcellaEngineError (#[from] ArcellaEngineError),    
 
-    #[error("Arcella Type error: {0}")]
-    ArcellaTypeError (#[from] ArcellaTypeError),
-
-    #[error("Arcella Utils error: {0}")]
-    ArcellaUtilsError (#[from] ArcellaUtilsError),  
-
-    /// General-purpose error for unexpected conditions.
-    #[error("Internal error: {0}")]
-    Internal(String),
-
-    /// I/O error (file not found, permission denied, etc.).
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    // External errors
 
     /// IO error with associated path for better diagnostics
     #[error("I/O error at {path:?}: {source}")]
@@ -53,44 +39,15 @@ pub enum ArcellaError {
         path: PathBuf,
     },
 
-    /// Invalid argument provided.
-    #[error("Invalid argument: {message}")]
-    InvalidArgument {
-        message: String,
-    },
-
-    /// Configuration loading or parsing error.
-    #[error("Config error: {0}")]
-    Config(String),
-
     /// JSON serialization/deserialization error.
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error), 
 
-    /// Task join error.
+    /// Tokio task join error.
     #[error("Task join error: {0}")]
     Join(#[from] JoinError),
 
-    #[error("Manifest error: {0}")]
-    ManifestError(String),
-
-    #[error("MiniState error: {0}")]
-    MiniStateError (#[from] MiniStateError), 
-
-    /// Module already installed.
-    #[error("Module already installed: {0}")]
-    ModuleAlreadyInstalled(String),
-
-    #[error("Module directory already exists on disk: {0}")]
-    ModuleDirAlreadyExists(String),
-
-    #[error("Module not installed: {0}")]
-    ModuleNotInstalled(String),
-
-    /// Runtime error.
-    #[error("Runtime error: {0}")]
-    RuntimeError(String),
-
+    /// Tokio lock error.
     #[error("Tokio lock error: {0}")]
     TryLockError(#[from] tokio::sync::TryLockError),
 
@@ -98,12 +55,67 @@ pub enum ArcellaError {
     #[error("WAT parsing error: {0}")]
     Wat(#[from] wat::Error),
 
+    // Internal platform errors
+
+    /// Configuration loading or parsing error.
+    #[error("Config error: {0}")]
+    ConfigError(String),
+
+    /// Runtime error.
+    #[error("Runtime error: {0}")]
+    RuntimeError(String),
+
+    /// Invalid argument provided.
+    #[error("Invalid argument: {message}")]
+    InvalidArgument {
+        message: String,
+    },
+    
+    #[error("Arcella Utils error: {0}")]
+    UtilsError (#[from] ArcellaUtilsError),  
+
+    /// General-purpose error for unexpected conditions.
+    #[error("Internal error: {0}")]
+    Internal(String),
+
+    // Specific Arcella errors
+
+    #[error("Module `{0}` is not installed")]
+    ModuleNotInstalled(String),
+
+    #[error("Module `{0}` already installed")]
+    ModuleAlreadyInstalled(String),
+
+    #[error("Module directory `{0}` already exists on disk")]
+    ModuleDirAlreadyExists(String),
+
+    // Inner errors
+
+    #[error("Type error: {0}")]
+    TypeError (#[from] ArcellaTypeError),
+
+    #[error("Engine error: {0}")]
+    EngineError (#[from] ArcellaEngineError),  
+
+    #[error("MiniState error: {0}")]
+    MiniStateError (#[from] MiniStateError), 
+
 }
 
 /// Convenient alias for `Result<T, ArcellaError>`.
 ///
 /// Use this in internal module APIs (e.g., `runtime::install_module`).
 pub type ArcellaResult<T> = std::result::Result<T, ArcellaError>;
+
+impl From<std::io::Error> for ArcellaError {
+    fn from(e: std::io::Error) -> Self {
+        // Fallback: неизвестный путь
+        Self::IoWithPath {
+            source: e,
+            path: PathBuf::from("<unknown>"),
+        }
+    }
+}
 
 // Re-export `anyhow::Result` as `AnyResult` for top-level use (optional but clean)
 // Alternatively, you can use `anyhow::Result` directly in `main.rs`

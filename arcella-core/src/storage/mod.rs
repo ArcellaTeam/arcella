@@ -61,12 +61,30 @@ impl StorageManager {
     async fn ensure_directories(&self) -> ArcellaResult<()> {
 
         if !self.modules_dir.exists() {
-            tokio::fs::create_dir_all(&self.modules_dir).await?;
+            match tokio::fs::create_dir_all(&self.modules_dir).await {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::error!("Failed to create modules directory: {:?}", e);
+                    return Err(ArcellaError::IoWithPath {
+                        source: e,
+                        path: self.modules_dir.clone(),
+                    });
+                },
+            };
             tracing::info!("Created modules directory: {:?}", self.modules_dir);
         }
 
         if !self.cache_dir.exists() {
-            tokio::fs::create_dir_all(&self.cache_dir).await?;
+            match tokio::fs::create_dir_all(&self.cache_dir).await {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::error!("Failed to create cache directory: {:?}", e);
+                    return Err(ArcellaError::IoWithPath {
+                        source: e,
+                        path: self.cache_dir.clone(),
+                    });
+                },
+            };
             tracing::info!("Created cache directory: {:?}", self.cache_dir);
         }
 

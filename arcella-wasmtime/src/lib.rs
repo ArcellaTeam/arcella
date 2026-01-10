@@ -18,5 +18,3 @@
 mod engine;
 mod from_wasmtime;
 pub mod manifest;
-
-pub use from_wasmtime::{ComponentItemSpecExt, ComponentTypeExt};

@@ -286,7 +286,12 @@ async fn ensure_main_config_exists(config_dir: &Path) -> ArcellaResult<(PathBuf,
     // Create main config from template if missing
     if !main_config_path.exists() {
         // TODO: Potential race condition if another process creates the file between `exists()` and `copy()`.
-        fs::copy(&template_path, &main_config_path).await?;
+        match fs::copy(&template_path, &main_config_path).await {
+            Ok(_) => {},
+            Err(e) => {
+                return Err(ArcellaError::IoWithPath { source: e, path: main_config_path.clone() });
+            },
+        };
         warnings.push(ConfigLoadWarning::Internal(
             format!("Created default config at {:?}", main_config_path)
         ));

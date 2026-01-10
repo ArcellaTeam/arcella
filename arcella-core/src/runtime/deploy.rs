@@ -104,14 +104,14 @@ pub async fn validate_deploy_package(deploy_path: &Path) -> ArcellaResult<Deploy
         Ok(id) => id,
         Err(e) => {
             tracing::error!("{}", e);
-            return Err(ArcellaError::ArcellaUtilsError(e));
+            return Err(ArcellaError::UtilsError(e));
         }
     };
     match validate_base_name(&deployment_id) {
         Ok(_) => (),
         Err(e) => {
             tracing::error!("{}", e);
-            return Err(ArcellaError::ArcellaUtilsError(e));
+            return Err(ArcellaError::UtilsError(e));
         }
     };
 

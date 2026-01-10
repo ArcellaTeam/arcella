@@ -317,12 +317,19 @@ pub fn init(config: &ArcellaConfig) -> ArcellaResult<Option<tracing_appender::no
     let log_table = extract_subtree(&config.config_values, &(ARCELLA_PREFIX.to_owned() + "log"));    
     let tracing_cfg: TracingConfig = toml::Value::Table(log_table)
         .try_into()
-        .map_err(|e| ArcellaError::Config(format!("failed to parse log config: {}", e)))?;
+        .map_err(|e| ArcellaError::ConfigError(format!("failed to parse log config: {}", e)))?;
 
     // Ensure log directory exists
     let log_dir = config.base_dir.join(&tracing_cfg.dir);
-    fs::create_dir_all(&log_dir)
-        .map_err(|e| ArcellaError::Io(e))?;
+    match fs::create_dir_all(&log_dir) {
+        Ok(_) => {},
+        Err(e) => {
+            return Err(ArcellaError::IoWithPath{
+                path: log_dir.clone(),
+                source: e,
+            });
+        },
+    };
 
     // Initialize ALME in-memory buffer
     if tracing_cfg.alme_buffer_size > 0 {
@@ -341,7 +348,7 @@ pub fn init(config: &ArcellaConfig) -> ArcellaResult<Option<tracing_appender::no
     let filter = directives.join(",");
 
     let env_filter = EnvFilter::try_new(filter)
-        .map_err(|e| ArcellaError::Config(format!("invalid log filter: {}", e)))?;
+        .map_err(|e| ArcellaError::ConfigError(format!("invalid log filter: {}", e)))?;
 
     let mut layers = Vec::new();
 

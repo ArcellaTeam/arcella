@@ -78,7 +78,15 @@ async fn main() -> ArcellaResult<()> {
     };
     tracing::info!("Starting ALME server");
 
-    tokio::signal::ctrl_c().await?;
+    match tokio::signal::ctrl_c().await {
+        Ok(()) => {
+            tracing::info!("Received Ctrl+C");
+        },
+        Err(e) => {
+            tracing::error!("Failed to listen for Ctrl+C: {}", e);
+            return Err(ArcellaError::Internal(e.to_string()));
+        }
+    };
     tracing::info!("Received Ctrl+C, shutting down...");
 
     if let Err(e) = runtime.write().await.shutdown().await {

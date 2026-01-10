@@ -11,7 +11,6 @@ use std::path::Path;
 
 use wasmtime::{ResourceLimiter, Store};
 
-
 use arcella_engine::{
     ArcellaEngineError,
     ArcellaEngineResult,

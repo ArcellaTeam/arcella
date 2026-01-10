@@ -14,6 +14,7 @@ use wasmtime::{Engine, component::Component};
 
 use arcella_engine::{ArcellaEngineError, ArcellaEngineResult};
 use arcella_types::{
+    ArcellaTypeError,
     interface_list::InterfaceList,
     manifest::{
         ComponentManifest,
@@ -50,7 +51,7 @@ pub fn component_manifest_from_wasm(engine: &Engine, wasm_path: &Path) -> Arcell
     let file_stem = wasm_path
         .file_stem()
         .and_then(|s| s.to_str())
-        .ok_or_else(|| ArcellaEngineError::Manifest("Invalid .wasm filename".into()))?;
+        .ok_or_else(|| ArcellaTypeError::ManifestError("Invalid .wasm filename".into()))?;
 
     let module_id = ModuleId::from_str(file_stem)?;
 

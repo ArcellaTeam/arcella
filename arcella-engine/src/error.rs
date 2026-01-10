@@ -17,8 +17,8 @@ use arcella_types::ArcellaTypeError;
 #[derive(Error, Debug)]
 pub enum ArcellaEngineError {
 
-    #[error("Arcella types error: {0}")]
-    ArcellaTypeError (#[from] ArcellaTypeError),    
+    #[error("Types error: {0}")]
+    TypeError (#[from] ArcellaTypeError),    
 
     #[error("Configuration error: {0}")]
     ConfigError(String),
@@ -29,20 +29,12 @@ pub enum ArcellaEngineError {
     #[error("Component introspection error: {0}")]
     Introspection(String),
 
-    /// I/O error (file not found, permission denied, etc.).
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-
     /// IO error with associated path for better diagnostics
     #[error("I/O error at {path:?}: {source}")]
     IoWithPath {
         source: std::io::Error,
         path: PathBuf,
     },
-    
-    /// Invalid or missing module manifest.
-    #[error("Manifest error: {0}")]
-    Manifest(String),
 
     #[error("Memory too small: {0}")]
     MemoryTooLarge(u32),

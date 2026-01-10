@@ -85,9 +85,27 @@ pub async fn spawn_server(
         }
     }
 
-    let listener = UnixListener::bind(&socket_path)?;
+    let listener = match UnixListener::bind(&socket_path) {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!("Failed to bind ALME socket {:?}: {}", socket_path, e);
+            return Err(ArcellaError::IoWithPath{
+                source: e,
+                path: socket_path,
+            });
+        }
+    };
     tracing::debug!("Bind ALME server to socket: {:?}", socket_path);
-    fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600))?;
+    match fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600)) {
+        Ok(_) => (),
+        Err(e) => {
+            tracing::error!("Failed to set permissions on ALME socket {:?}: {}", socket_path, e);
+            return Err(ArcellaError::IoWithPath {
+                source: e,
+                path: socket_path,
+            });
+        },
+    };
     tracing::debug!("Set permissions on ALME socket: {:?}", socket_path);
 
     let (shutdown_tx, shutdown_rx) = broadcast::channel::<()>(1);
@@ -221,7 +239,7 @@ async fn handle_connection(
                     },
                     Ok(Err(e)) => {
                         tracing::error!("Recieved error: {}", e);
-                        return Err(ArcellaError::Io(e));
+                        return Err(e.into());
                     },
                     _ => {
                         tracing::warn!("Reader timeout");
@@ -281,7 +299,10 @@ async fn send_response(
     json.push(b'\n');
     let _ = stream.write_all(&json).await.map_err(|e| {
         tracing::error!("Failed to send response: {}", e);
-        ArcellaError::Io(e)
+        ArcellaError::IoWithPath{
+            path: PathBuf::from("<unknown>"),
+            source: e,
+        }
     });
     Ok(())
 }
