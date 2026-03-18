@@ -14,5 +14,6 @@ pub mod cache;
 mod manifest;
 mod error;
 mod utils;
+mod inspector;
 
 pub use error::{ArcellaError, ArcellaResult};

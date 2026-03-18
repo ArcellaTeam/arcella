@@ -152,7 +152,7 @@ impl WasmtimeEngine {
 
 
 impl WasmEngine for WasmtimeEngine {
-    async fn inspect_component(&self, wasm_path: &Path) -> ArcellaEngineResult<ComponentManifest> {
+    fn inspect_component(&self, wasm_path: &Path) -> ArcellaEngineResult<ComponentManifest> {
         component_manifest_from_wasm(&self.engine, wasm_path)
     }
 

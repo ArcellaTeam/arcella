@@ -34,7 +34,7 @@
 //! ## Usage Example
 //!
 //! ```rust, ignore
-//! use arcella_core::engine::{WasmEngineConfig, WasmFeatureGroup};
+//! use arcella_engine::{WasmEngineConfig, WasmFeatureGroup};
 //!
 //! // Standard profile for Component Model
 //! let config = WasmEngineConfig::default()
@@ -47,7 +47,7 @@
 //! // ... pass the config to an engine adapter (e.g., WasmtimeEngine)
 //! ```
 //!
-//! See also: [`arcella_types::manifest::ComponentManifest`], [`wasmtime::Engine`]
+//! See also: [`arcella_types::manifest::ComponentManifest`]
 
 use derive_builder::Builder;
 use std::path::Path;
@@ -509,7 +509,7 @@ pub trait WasmEngine: WasmEngineCapabilities + Send + Sync {
     ///
     /// The method must correctly handle both core modules (WASI) and Component Model.
     /// If the engine does not support Component Model, it **must** return a manifest of type `CoreWasi`.
-    async fn inspect_component(&self, wasm_path: &Path) -> ArcellaEngineResult<ComponentManifest>;
+    fn inspect_component(&self, wasm_path: &Path) -> ArcellaEngineResult<ComponentManifest>;
 
     /// Returns a short engine name (e.g., `"wasmtime"`).
     fn name(&self) -> &'static str;
@@ -609,7 +609,7 @@ mod tests {
     }
 
     impl WasmEngine for MockWasmEngine {
-        async fn inspect_component(&self, _wasm_path: &Path) -> ArcellaEngineResult<ComponentManifest> {
+        fn inspect_component(&self, _wasm_path: &Path) -> ArcellaEngineResult<ComponentManifest> {
             unimplemented!("not used in these tests")
         }
 
