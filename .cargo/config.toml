@@ -1,0 +1,8 @@
+# .cargo/config.toml  ← локальный файл, НЕ коммитится в git
+[patch.crates-io]
+arcella-core = { path = "arcella-core" }
+arcella-types = { path = "arcella-types" }
+#flexicon = { path = "../flexicon" }
+#ministore = { path = "../mini-rs/ministore" }
+#minisnap = { path = "../mini-rs/minisnap" }
+#ministate = { path = "../mini-rs/ministate" }
