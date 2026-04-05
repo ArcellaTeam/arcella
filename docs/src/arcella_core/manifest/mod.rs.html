@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `arcella-core/src/manifest/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arcella_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0 (ded5c06cf 2025-12-08)" data-channel="1.92.0" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">arcella_core/manifest/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// arcella/arcella-core/src/manifest/mod.rs
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `arcella-core/src/manifest/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-77263533.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="arcella_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.94.1 (e408947bf 2026-03-25)" data-channel="1.94.1" data-search-js="search-9e2438ea.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7bab91a1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-ffcac47a.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">arcella_core/manifest/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// arcella/arcella-core/src/manifest/mod.rs
 <a href=#2 id=2 data-nosnippet>2</a>//
 <a href=#3 id=3 data-nosnippet>3</a>// Copyright (c) 2025 Alexey Rybakov, Arcella Team
 <a href=#4 id=4 data-nosnippet>4</a>//
@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>    manifest,
 <a href=#43 id=43 data-nosnippet>43</a>};
 <a href=#44 id=44 data-nosnippet>44</a>
-<a href=#45 id=45 data-nosnippet>45</a><span class="kw">use crate</span>::{ArcellaError, ArcellaResult};
+<a href=#45 id=45 data-nosnippet>45</a><span class="kw">use </span>crate::{ArcellaError, ArcellaResult};
 <a href=#46 id=46 data-nosnippet>46</a>
 <a href=#47 id=47 data-nosnippet>47</a><span class="comment">// ================================
 <a href=#48 id=48 data-nosnippet>48</a>// 1. COMPONENT MANIFEST (portable)
@@ -165,7 +165,7 @@
 <a href=#165 id=165 data-nosnippet>165</a>            <span class="self">self</span>.r#async,
 <a href=#166 id=166 data-nosnippet>166</a>        )<span class="question-mark">?</span>;
 <a href=#167 id=167 data-nosnippet>167</a>
-<a href=#168 id=168 data-nosnippet>168</a>        <span class="kw">if </span><span class="self">self</span>.group.is_some() &amp;&amp; <span class="self">self</span>.isolation != IsolationMode::Worker {
+<a href=#168 id=168 data-nosnippet>168</a>        <span class="kw">if </span><span class="self">self</span>.group.is_some() &amp;&amp; <span class="self">self</span>.<span class="macro">isolation !</span>= IsolationMode::Worker {
 <a href=#169 id=169 data-nosnippet>169</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ArcellaWasmtimeError::Manifest(
 <a href=#170 id=170 data-nosnippet>170</a>                <span class="string">"Group can only be specified for worker isolation"</span>.into(),
 <a href=#171 id=171 data-nosnippet>171</a>            ).into());
@@ -316,7 +316,7 @@
 <a href=#316 id=316 data-nosnippet>316</a>            <span class="self">self</span>.r#async
 <a href=#317 id=317 data-nosnippet>317</a>        )<span class="question-mark">?</span>;
 <a href=#318 id=318 data-nosnippet>318</a>
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">if </span><span class="self">self</span>.isolation == IsolationMode::Main &amp;&amp; <span class="self">self</span>.replicas != <span class="number">1 </span>{
+<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">if </span><span class="self">self</span>.isolation == IsolationMode::Main &amp;&amp; <span class="self">self</span>.<span class="macro">replicas !</span>= <span class="number">1 </span>{
 <a href=#320 id=320 data-nosnippet>320</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ArcellaWasmtimeError::Manifest(
 <a href=#321 id=321 data-nosnippet>321</a>                <span class="string">"Main isolation supports only 1 replica"</span>.into()
 <a href=#322 id=322 data-nosnippet>322</a>            ).into());
@@ -512,7 +512,7 @@
 <a href=#512 id=512 data-nosnippet>512</a>    trusted: bool,
 <a href=#513 id=513 data-nosnippet>513</a>    r#async: bool,
 <a href=#514 id=514 data-nosnippet>514</a>) -&gt; ArcellaResult&lt;()&gt; {
-<a href=#515 id=515 data-nosnippet>515</a>    <span class="kw">if </span>trusted &amp;&amp; <span class="kw-2">*</span>isolation != IsolationMode::Main {
+<a href=#515 id=515 data-nosnippet>515</a>    <span class="kw">if </span>trusted &amp;&amp; <span class="kw-2">*</span><span class="macro">isolation !</span>= IsolationMode::Main {
 <a href=#516 id=516 data-nosnippet>516</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(ArcellaWasmtimeError::Manifest(
 <a href=#517 id=517 data-nosnippet>517</a>            <span class="string">"Only 'main' isolation can be trusted"</span>.into()
 <a href=#518 id=518 data-nosnippet>518</a>        ).into());
@@ -532,7 +532,7 @@
 <a href=#532 id=532 data-nosnippet>532</a>
 <a href=#533 id=533 data-nosnippet>533</a></span><span class="attr">#[cfg(test)]
 <a href=#534 id=534 data-nosnippet>534</a></span><span class="kw">pub mod </span>test_utils {
-<a href=#535 id=535 data-nosnippet>535</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#535 id=535 data-nosnippet>535</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
 <a href=#536 id=536 data-nosnippet>536</a>    <span class="kw">use </span>std::fs;
 <a href=#537 id=537 data-nosnippet>537</a>    <span class="kw">use </span>tempfile::TempDir;
 <a href=#538 id=538 data-nosnippet>538</a>
@@ -558,7 +558,7 @@
 <a href=#558 id=558 data-nosnippet>558</a>
 <a href=#559 id=559 data-nosnippet>559</a><span class="attr">#[cfg(test)]
 <a href=#560 id=560 data-nosnippet>560</a></span><span class="kw">mod </span>tests {
-<a href=#561 id=561 data-nosnippet>561</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#561 id=561 data-nosnippet>561</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
 <a href=#562 id=562 data-nosnippet>562</a>    <span class="kw">use </span>std::fs;
 <a href=#563 id=563 data-nosnippet>563</a>    <span class="kw">use </span>tempfile::TempDir;
 <a href=#564 id=564 data-nosnippet>564</a>
@@ -669,4 +669,5 @@
 <a href=#669 id=669 data-nosnippet>669</a>        <span class="macro">assert!</span>(result.is_none());
 <a href=#670 id=670 data-nosnippet>670</a>    }       
 <a href=#671 id=671 data-nosnippet>671</a>    
-<a href=#672 id=672 data-nosnippet>672</a>}</code></pre></div></section></main></body></html>
+<a href=#672 id=672 data-nosnippet>672</a>}
+</code></pre></div></section></main></body></html>
