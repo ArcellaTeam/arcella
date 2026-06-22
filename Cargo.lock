@@ -108,7 +108,7 @@ name = "arcella"
 version = "0.2.6"
 dependencies = [
  "arcella-core",
- "arcella-types",
+ "arcella-types 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap",
  "indexmap",
  "serde",
@@ -124,11 +124,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "arcella-broker"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "arcella-cli"
 version = "0.2.2"
 dependencies = [
  "anyhow",
- "arcella-types",
+ "arcella-types 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap",
  "dirs",
  "serde",
@@ -140,7 +150,7 @@ dependencies = [
 name = "arcella-core"
 version = "0.1.0"
 dependencies = [
- "arcella-types",
+ "arcella-types 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_builder",
  "dirs",
  "futures",
@@ -173,6 +183,21 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "toml 0.9.8",
+]
+
+[[package]]
+name = "arcella-types"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7766a9f61163eadac6843af581ab4eea0443b2cf9254142bf6357f47d2137f71"
+dependencies = [
+ "flexicon",
+ "indexmap",
+ "ordered-float",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -816,6 +841,8 @@ checksum = "3a3076410a55c90011c298b04d0cfa770b00fa04e1e3c97d3f6c9de105a03844"
 [[package]]
 name = "flexicon"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2af02dd30f7e7dca862dcb15b3d315f587a2aacec7c8e6c7eaf2a16840e3843"
 dependencies = [
  "serde",
 ]
@@ -1369,6 +1396,8 @@ dependencies = [
 [[package]]
 name = "ministate"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4918e60396aa2f9d0d369039092686c11368d15531fcc749c19d8de9b07c2db2"
 dependencies = [
  "ministore",
  "serde",
@@ -1379,7 +1408,9 @@ dependencies = [
 
 [[package]]
 name = "ministore"
-version = "0.1.3"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e4486d992eb0e190f73114f14b9250e38f170d3d4219e50ce0a2902092ca084"
 dependencies = [
  "serde",
  "serde_json",
@@ -3333,7 +3364,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "minisnap"
-version = "0.1.1"

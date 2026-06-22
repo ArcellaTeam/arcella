@@ -3,6 +3,7 @@
 resolver = "2"
 members = [
     "arcella",
+    "arcella-broker",
     "arcella-core",
     "arcella-cli",
     "arcella-types",
