@@ -1,6 +1,6 @@
 // arcella/arcella-cli/src/main.rs
 //
-// Copyright (c) 2026 Alexey Rybakov, Arcella Team
+// Copyright (c) 2026 Arcella Team
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE>
 // or the MIT license <LICENSE-MIT>, at your option.
@@ -9,6 +9,8 @@
 
 use clap::{Parser, Subcommand};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+mod protocol;
 
 
 /// Arcella Broker — микроброкер Arcella
