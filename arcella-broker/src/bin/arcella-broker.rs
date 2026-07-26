@@ -1,4 +1,4 @@
-// arcella/arcella-cli/src/main.rs
+// arcella/arcella-broker/src/bin/arcella-broker.rs
 //
 // Copyright (c) 2026 Arcella Team
 //
@@ -10,7 +10,7 @@
 use clap::{Parser, Subcommand};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-mod protocol;
+use arcella_broker::protocol;
 
 
 /// Arcella Broker — микроброкер Arcella
