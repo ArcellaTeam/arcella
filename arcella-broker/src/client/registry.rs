@@ -7,6 +7,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
@@ -21,7 +22,7 @@ pub type LocalChannel = mpsc::Sender<Message>;
 /// Value — sender to the recipient's queue.
 #[derive(Default)]
 pub struct LocalRegistry {
-    recipients: RwLock<HashMap<String, LocalChannel>>,
+    recipients: DashMap<String, LocalChannel>,
 }
 
 impl LocalRegistry {
@@ -30,23 +31,23 @@ impl LocalRegistry {
     }
 
     /// Register a recipient at the specified address
-    pub async fn register(&self, address: String, channel: LocalChannel) {
-        self.recipients.write().await.insert(address, channel);
+    pub fn register(&self, address: String, channel: LocalChannel) {
+        self.recipients.insert(address, channel);
     }
 
     /// Unregister a recipient
-    pub async fn unregister(&self, address: &str) {
-        self.recipients.write().await.remove(address);
+    pub fn unregister(&self, address: &str) {
+        self.recipients.remove(address);
     }
 
     /// Find a local channel for the given address.
     /// Returns `Some(channel)` if the recipient exists in this process.
-    pub async fn lookup(&self, address: &str) -> Option<LocalChannel> {
-        self.recipients.read().await.get(address).cloned()
+    pub fn lookup(&self, address: &str) -> Option<LocalChannel> {
+        self.recipients.get(address).map(|entry| entry.value().clone())
     }
 
     /// Check if a local recipient exists for the given address
-    pub async fn has_local(&self, address: &str) -> bool {
-        self.recipients.read().await.contains_key(address)
+    pub fn has_local(&self, address: &str) -> bool {
+        self.recipients.contains_key(address)
     }
 }

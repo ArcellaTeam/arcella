@@ -18,9 +18,9 @@ use arcella_broker::protocol::{Message, TransferMode};
 // ============================================================================
 // Test Configuration
 // ============================================================================
-const NUM_RECEIVERS: usize = 1;
-const NUM_SENDERS: usize = 1;
-const MESSAGES_PER_SENDER: usize = 200000;
+const NUM_RECEIVERS: usize = 100;
+const NUM_SENDERS: usize = 100;
+const MESSAGES_PER_SENDER: usize = 1000000;
 const TOTAL_MESSAGES: usize = NUM_SENDERS * MESSAGES_PER_SENDER;
 
 /// High-throughput load test for the in-memory broker routing.

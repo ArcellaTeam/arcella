@@ -25,6 +25,7 @@ ministate = "0.1.1"
 anyhow = "1"
 bytes = "1.12"
 clap = { version = "4.6", features = ["derive"] }
+dashmap = "6.2"
 derive_builder = "0.20"
 dirs = "6"
 futures = "0.3.33"

@@ -31,19 +31,19 @@ impl BrokerClient {
     
     /// Register itself as a receiver at the specified address.
     pub async fn bind(&self, address: String, incoming_tx: tokio::sync::mpsc::Sender<Message>) {
-        self.registry.register(address, incoming_tx).await;
+        self.registry.register(address, incoming_tx);
     }
 
     /// Unregister a recipient at the specified address.
     /// This will close the receiver's channel, causing any pending `recv()` calls to return `None`.
     pub async fn unbind(&self, address: &str) {
-        self.registry.unregister(address).await;
+        self.registry.unregister(address);
     }    
 
     /// Send a message (InOnly).
     pub async fn send(&self, address: &str, message: Message) -> TransportResult<()> {
         // Priority 1: local delivery
-        if self.registry.has_local(address).await {
+        if self.registry.has_local(address) {
             return self.local.send(address, message).await;
         }
         
@@ -56,7 +56,7 @@ impl BrokerClient {
 
     /// Send a request and wait for a response (InOut).
     pub async fn request(&self, address: &str, message: Message) -> TransportResult<Message> {
-        if self.registry.has_local(address).await {
+        if self.registry.has_local(address) {
             return self.local.request(address, message).await;
         }
         
@@ -245,7 +245,7 @@ mod tests {
         assert!(rx.recv().await.is_some());
 
         // Unregistration
-        registry.unregister("arcella:test").await;
+        registry.unregister("arcella:test");
 
         // Should return an error again
         let msg2 = Message::new(

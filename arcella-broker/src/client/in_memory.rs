@@ -48,7 +48,7 @@ impl Transport for InMemoryTransport {
         message: Message,
     ) -> Pin<Box<dyn Future<Output = TransportResult<()>> + Send + 'a>> {
         Box::pin(async move {
-            match self.registry.lookup(address).await {
+            match self.registry.lookup(address) {
                 Some(channel) => {
                     channel.send(message).await.map_err(|_| {
                         TransportError::RecipientNotFound(address.to_string())
