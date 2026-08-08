@@ -33,10 +33,13 @@ pub const SESSION_TOKEN_LEN: usize = 32;
 /// Message ID size (16 bytes)
 pub const MESSAGE_ID_LEN: usize = 16;
 
+/// Submessage ID size (4 bytes)
+pub const SUB_MESSAGE_ID_LEN: usize = 4;
+
 /// Size of the fixed header in bytes
-/// 2 (version) + 2 (flags) + 32 (token) + 16 (guid) + 1 (ttl) 
-/// + 1 (type_len) + 2 (addr_len) + 4 (payload_len) = 60 bytes
-pub const FIXED_HEADER_SIZE: usize = 60;
+/// 2 (version) + 2 (flags) + 32 (token) + 16 (guid) + 4 (sub_id)+ 1 (ttl) 
+/// + 1 (type_len) + 2 (addr_len) + 4 (payload_len) = 64 bytes
+pub const FIXED_HEADER_SIZE: usize = 64;
 
 // ============================================================================
 // Bit masks for the flags field
@@ -135,13 +138,14 @@ impl TransferMode {
 // Fixed header
 // ============================================================================
 
-/// Fixed part of the message header (60 bytes)
+/// Fixed part of the message header (64 bytes)
 /// 
 /// Structure (all numbers in Little-Endian):
 /// - version: u16 — protocol version
 /// - flags: u16 — flags (transfer mode)
 /// - session_token: [u8; SESSION_TOKEN_LEN] — session token (SHA-256/BLAKE3)
 /// - message_id: [u8; MESSAGE_ID_LEN] — unique message identifier (GUID)
+/// - sub_message_id: [u8; SUB_MESSAGE_ID_LEN] — unique submessage identifier (GUID)
 /// - ttl: u8 — routing counter (Time To Live)
 /// - msg_type_len: u8 — message type length
 /// - address_len: u16 — recipient address length
@@ -152,6 +156,7 @@ pub struct FixedHeader {
     pub flags: u16,
     pub session_token: [u8; SESSION_TOKEN_LEN],
     pub message_id: [u8; MESSAGE_ID_LEN],
+    pub sub_message_id: [u8; SUB_MESSAGE_ID_LEN],
     pub ttl: u8,
     pub msg_type_len: u8,
     pub address_len: u16,
@@ -162,8 +167,9 @@ impl FixedHeader {
     /// Creates a new fixed header with validation
     pub fn new(
         mode: TransferMode,
-        session_token: [u8; 32],
-        message_id: [u8; 16],
+        session_token: [u8; SESSION_TOKEN_LEN],
+        message_id: [u8; MESSAGE_ID_LEN],
+        sub_message_id: [u8; SUB_MESSAGE_ID_LEN],
         ttl: u8,
         msg_type_len: u8,
         address_len: u16,
@@ -187,6 +193,7 @@ impl FixedHeader {
             flags: flags,
             session_token,
             message_id,
+            sub_message_id,
             ttl,
             msg_type_len,
             address_len,
@@ -215,6 +222,9 @@ impl FixedHeader {
         let mut message_id = [0u8; MESSAGE_ID_LEN];
         buf.copy_to_slice(&mut message_id);
 
+        let mut sub_message_id = [0u8; SUB_MESSAGE_ID_LEN];
+        buf.copy_to_slice(&mut sub_message_id);
+
         let ttl = buf.get_u8();
         let msg_type_len = buf.get_u8();
         let address_len = buf.get_u16_le();
@@ -236,6 +246,7 @@ impl FixedHeader {
             flags,
             session_token,
             message_id,
+            sub_message_id,
             ttl,
             msg_type_len,
             address_len,
@@ -332,6 +343,7 @@ impl Message {
         mode: TransferMode,
         session_token: [u8; SESSION_TOKEN_LEN],
         message_id: [u8; MESSAGE_ID_LEN],
+        sub_message_id: [u8; SUB_MESSAGE_ID_LEN],
         ttl: u8,
         msg_type: String,
         address: String,
@@ -360,6 +372,7 @@ impl Message {
             mode,
             session_token,
             message_id,
+            sub_message_id,
             ttl,
             msg_type_bytes.len() as u8,
             address_bytes.len() as u16,

@@ -74,6 +74,7 @@ async fn test_high_throughput_in_memory_routing() {
                     TransferMode::InOnly,
                     [0u8; 32], // session_token
                     [0u8; 16], // message_id
+                    [0u8; 4],
                     64,        // ttl
                     "perf:test".to_string(),
                     addr.clone(),
