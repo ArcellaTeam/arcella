@@ -7,9 +7,12 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use bytes::Bytes;
+use std::sync::Arc;
+
 use crate::client::registry::LocalRegistry;
 use crate::client::BrokerClient;
-use std::sync::Arc;
+use crate::protocol::{Message, TransferMode};
 
 /// Create a test client with a local reestr
 pub fn test_client() -> BrokerClient {
@@ -20,4 +23,17 @@ pub fn test_client() -> BrokerClient {
 /// Create a test client with a shared reestr (for multiple clients)
 pub fn test_client_with_shared_registry(registry: Arc<LocalRegistry>) -> BrokerClient {
     BrokerClient::new(registry)
+}
+
+pub fn dummy_in_only_message(msg_type: &str, address: &str, payload: &[u8]) -> Message {
+    Message::new(
+        TransferMode::InOnly,
+        [0u8; 32],
+        [1u8; 16],
+        [0u8; 4],
+        64,
+        msg_type.to_string(),
+        address.to_string(),
+        Bytes::from(payload.to_vec()),
+    ).unwrap()
 }

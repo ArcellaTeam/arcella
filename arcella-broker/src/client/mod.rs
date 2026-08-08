@@ -71,7 +71,7 @@ mod tests {
     use tokio::sync::mpsc;
 
     use super::*;
-    use crate::protocol::TransferMode;
+    use crate::test_utils;
 
     #[tokio::test]
     async fn test_in_memory_message_delivery_in_only() {
@@ -89,15 +89,9 @@ mod tests {
         client.bind(target_address.clone(), receiver_tx).await;
 
         // 3. Create a test message
-        let original_message = Message::new(
-            TransferMode::InOnly,
-            [0u8; 32], // session_token (dummy)
-            [1u8; 16], // message_id (dummy)
-            64,        // ttl
-            "test:ping".to_string(),
-            target_address.clone(),
-            Bytes::from("hello from sender"),
-        ).expect("Message creation should succeed");
+        let original_message = test_utils::dummy_in_only_message("test:ping",
+            &target_address,
+            b"hello from sender");
 
         // 4. Action: Send the message
         let send_result = client.send(&target_address, original_message.clone()).await;
@@ -121,13 +115,9 @@ mod tests {
         let registry = LocalRegistry::new();
         let client = BrokerClient::new(registry);
 
-        let msg = Message::new(
-            TransferMode::InOnly,
-            [0u8; 32], [1u8; 16], 64,
-            "test:ping".to_string(),
-            "arcella:unknown:address".to_string(),
-            Bytes::new(),
-        ).unwrap();
+        let msg = test_utils::dummy_in_only_message("test:ping",
+            "arcella:unknown:address",
+            b"");
 
         // Attempt to send to an unregistered address
         let result = client.send("arcella:unknown:address", msg).await;
@@ -168,15 +158,9 @@ mod tests {
         ];
 
         for (addr, msg_type, payload) in &test_messages {
-            let msg = Message::new(
-                TransferMode::InOnly,
-                [0u8; 32],
-                [1u8; 16],
-                64,
-                msg_type.to_string(),
-                addr.to_string(),
-                payload.clone(),
-            ).expect("Message creation should succeed");
+            let msg = test_utils::dummy_in_only_message(msg_type,
+                addr,
+                payload);
 
             let result = client.send(addr, msg).await;
             assert!(result.is_ok(), "Send to {} should succeed", addr);
@@ -229,10 +213,9 @@ mod tests {
         let client = BrokerClient::new(registry.clone());
 
         // Sending before registration should return an error
-        let msg = Message::new(
-            TransferMode::InOnly, [0u8; 32], [1u8; 16], 64,
-            "test".to_string(), "arcella:test".to_string(), Bytes::new(),
-        ).unwrap();
+        let msg = test_utils::dummy_in_only_message("test",
+            "arcella:test",
+            b"");
         
         assert!(client.send("arcella:test", msg.clone()).await.is_err());
 
@@ -245,13 +228,12 @@ mod tests {
         assert!(rx.recv().await.is_some());
 
         // Unregistration
-        registry.unregister("arcella:test");
+        client.unbind("arcella:test").await;
 
         // Should return an error again
-        let msg2 = Message::new(
-            TransferMode::InOnly, [0u8; 32], [2u8; 16], 64,
-            "test2".to_string(), "arcella:test".to_string(), Bytes::new(),
-        ).unwrap();
+        let msg2 = test_utils::dummy_in_only_message("test2",
+            "arcella:test",
+            b"");
         assert!(client.send("arcella:test", msg2).await.is_err());
     }    
 
