@@ -8,9 +8,7 @@
 // except according to those terms.
 
 use dashmap::DashMap;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{RwLock, mpsc};
+use tokio::sync::mpsc;
 use crate::protocol::Message;
 
 /// Channel type for local delivery
@@ -26,8 +24,8 @@ pub struct LocalRegistry {
 }
 
 impl LocalRegistry {
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self::default())
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Register a recipient at the specified address

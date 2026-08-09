@@ -260,6 +260,7 @@ impl FixedHeader {
         buf.put_u16_le(self.flags);
         buf.put_slice(&self.session_token);
         buf.put_slice(&self.message_id);
+        buf.put_slice(&self.sub_message_id);
         buf.put_u8(self.ttl);
         buf.put_u8(self.msg_type_len);
         buf.put_u16_le(self.address_len);
@@ -332,8 +333,8 @@ pub fn validate_address(address: &str) -> Result<(), ProtocolError> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
     pub header: FixedHeader,
-    pub msg_type: String,
-    pub address: String,
+    pub msg_type: Bytes,
+    pub address: Bytes,
     pub payload: Bytes,
 }
 
@@ -345,22 +346,22 @@ impl Message {
         message_id: [u8; MESSAGE_ID_LEN],
         sub_message_id: [u8; SUB_MESSAGE_ID_LEN],
         ttl: u8,
-        msg_type: String,
-        address: String,
+        msg_type: Bytes,
+        address: Bytes,
         payload: Bytes,
     ) -> Result<Self, ProtocolError> {
         // Address validation
-        validate_address(&address)?;
+        let address_str = str::from_utf8(&address)
+            .map_err(|_| ProtocolError::InvalidAddressUtf8)?;
+        validate_address(&address_str)?;
 
         // Length validation
-        let msg_type_bytes = msg_type.as_bytes();
-        if msg_type_bytes.len() > MAX_MSG_TYPE_LEN {
-            return Err(ProtocolError::MsgTypeTooLong(msg_type_bytes.len() as u8));
+        if msg_type.len() > MAX_MSG_TYPE_LEN {
+            return Err(ProtocolError::MsgTypeTooLong(msg_type.len() as u8));
         }
 
-        let address_bytes = address.as_bytes();
-        if address_bytes.len() > MAX_ADDRESS_LEN {
-            return Err(ProtocolError::AddressTooLong(address_bytes.len() as u16));
+        if address.len() > MAX_ADDRESS_LEN {
+            return Err(ProtocolError::AddressTooLong(address.len() as u16));
         }
 
         let payload_len = payload.len() as u32;
@@ -374,8 +375,8 @@ impl Message {
             message_id,
             sub_message_id,
             ttl,
-            msg_type_bytes.len() as u8,
-            address_bytes.len() as u16,
+            msg_type.len() as u8,
+            address.len() as u16,
             payload_len,
         )?;
 
@@ -397,23 +398,25 @@ impl Message {
         if buf.remaining() < msg_type_len {
             return Err(ProtocolError::IncompleteMsgType);
         }
-        let msg_type_bytes = buf.copy_to_bytes(msg_type_len);
-        let msg_type = str::from_utf8(&msg_type_bytes)
-            .map_err(|_| ProtocolError::InvalidMsgTypeUtf8)?
-            .to_string();
+        let msg_type = buf.copy_to_bytes(msg_type_len);
+        //let msg_type = str::from_utf8(&msg_type_bytes)
+        //    .map_err(|_| ProtocolError::InvalidMsgTypeUtf8)?
+        //    .to_string();
 
         // 3. Read the recipient address
         let address_len = header.address_len as usize;
         if buf.remaining() < address_len {
             return Err(ProtocolError::IncompleteAddress);
         }
-        let address_bytes = buf.copy_to_bytes(address_len);
-        let address = str::from_utf8(&address_bytes)
-            .map_err(|_| ProtocolError::InvalidAddressUtf8)?
-            .to_string();
+        let address = buf.copy_to_bytes(address_len);
+        //let address = str::from_utf8(&address_bytes)
+        //    .map_err(|_| ProtocolError::InvalidAddressUtf8)?
+        //    .to_string();
 
         // 4. Validate address
-        validate_address(&address)?;
+        let address_str = str::from_utf8(&address)
+            .map_err(|_| ProtocolError::InvalidAddressUtf8)?;
+        validate_address(&address_str)?;
 
         // 5. Read payload (zero-copy via Bytes)
         let payload_len = header.payload_len as usize;
@@ -436,10 +439,10 @@ impl Message {
         self.header.encode(buf);
 
         // 2. Message type
-        buf.put_slice(self.msg_type.as_bytes());
+        buf.put_slice(&self.msg_type);
 
         // 3. Recipient address
-        buf.put_slice(self.address.as_bytes());
+        buf.put_slice(&self.address);
 
         // 4. Payload
         buf.put_slice(&self.payload);

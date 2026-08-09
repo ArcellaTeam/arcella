@@ -10,7 +10,6 @@
 use std::sync::Arc;
 use std::time::Instant;
 use bytes::Bytes;
-use tokio::sync::mpsc;
 
 use arcella_broker::client::{BrokerClient, registry::LocalRegistry};
 use arcella_broker::protocol::{Message, TransferMode};
@@ -24,31 +23,26 @@ const MESSAGES_PER_SENDER: usize = 1000000;
 const TOTAL_MESSAGES: usize = NUM_SENDERS * MESSAGES_PER_SENDER;
 
 /// High-throughput load test for the in-memory broker routing.
-/// 
-/// This test spawns 100 sender tasks and 100 receiver tasks, running on a 
-/// multi-threaded Tokio runtime with 128 worker threads. It measures the 
-/// total time to deliver 200,000 messages and calculates the throughput.
-#[tokio::test(flavor = "multi_thread", worker_threads = 128)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 16)]
 async fn test_high_throughput_in_memory_routing() {
     // 1. Initialize Broker
-    let registry = LocalRegistry::new();
+    let registry = Arc::new(LocalRegistry::new());
     let client = Arc::new(BrokerClient::new(registry));
 
     // 2. Register Receivers and spawn receiver tasks
     let mut receiver_handles = Vec::with_capacity(NUM_RECEIVERS);
     
     for i in 0..NUM_RECEIVERS {
-        let (tx, mut rx) = mpsc::channel::<Message>(1024); // Buffer size 1024
         let addr = format!("arcella:perf:recv:{}", i);
         
         // Register the sender half in the broker registry
-        client.bind(addr, tx).await;
+        let mut subscriber = client.subscribe(addr).await;
         
         // Spawn a dedicated task for each receiver to consume messages
         let handle = tokio::spawn(async move {
             let mut count = 0;
             // The loop will terminate when the channel is closed (all senders dropped)
-            while let Some(_msg) = rx.recv().await {
+            while let Some(_msg) = subscriber.recv().await {
                 count += 1;
             }
             count
@@ -66,7 +60,10 @@ async fn test_high_throughput_in_memory_routing() {
         let handle = tokio::spawn(async move {
             // Route messages to a specific receiver (with an offset to test routing logic)
             let target_idx = (i + 50) % NUM_RECEIVERS;
-            let addr = format!("arcella:perf:recv:{}", target_idx);
+            let addr_str = format!("arcella:perf:recv:{}", target_idx);
+            let addr = Bytes::from(addr_str.clone());
+            let msg_type_str = Bytes::from_static(b"perf:test");
+            let payload = Bytes::from_static(b"performance test payload data data");
             
             for _j in 0..MESSAGES_PER_SENDER {
                 // Using Bytes::from_static to avoid payload allocation overhead
@@ -76,12 +73,12 @@ async fn test_high_throughput_in_memory_routing() {
                     [0u8; 16], // message_id
                     [0u8; 4],
                     64,        // ttl
-                    "perf:test".to_string(),
+                    msg_type_str.clone(),
                     addr.clone(),
-                    Bytes::from_static(b"performance test payload data"),
+                    payload.clone(),
                 ).expect("Message creation should not fail in test");
                 
-                client.send(&addr, msg).await.expect("Send should succeed");
+                client.send(&addr_str, msg).await.expect("Send should succeed");
             }
         });
         sender_handles.push(handle);

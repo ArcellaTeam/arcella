@@ -16,7 +16,7 @@ use crate::protocol::{Message, TransferMode};
 
 /// Create a test client with a local reestr
 pub fn test_client() -> BrokerClient {
-    let registry = LocalRegistry::new();
+    let registry = Arc::new(LocalRegistry::new());
     BrokerClient::new(registry)
 }
 
@@ -25,15 +25,15 @@ pub fn test_client_with_shared_registry(registry: Arc<LocalRegistry>) -> BrokerC
     BrokerClient::new(registry)
 }
 
-pub fn dummy_in_only_message(msg_type: &str, address: &str, payload: &[u8]) -> Message {
+pub fn dummy_in_only_message(msg_type: Bytes, address: Bytes, payload: Bytes) -> Message {
     Message::new(
         TransferMode::InOnly,
         [0u8; 32],
         [1u8; 16],
         [0u8; 4],
         64,
-        msg_type.to_string(),
-        address.to_string(),
-        Bytes::from(payload.to_vec()),
+        msg_type,
+        address,
+        payload,
     ).unwrap()
 }

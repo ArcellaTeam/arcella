@@ -8,14 +8,21 @@
 // except according to those terms.
 
 use std::sync::Arc;
+use tokio::sync::mpsc;
 
-pub mod registry;
 pub mod in_memory;
+pub mod registry;
+mod subscriber;
 
 use crate::protocol::Message;
 use crate::transport::{Transport, TransportError, TransportResult};
-use registry::LocalRegistry;
+
 use in_memory::InMemoryTransport;
+use registry::LocalRegistry;
+use subscriber::Subscriber;
+
+const DEFAULT_CHANNEL_CAPACITY: usize = 1024;
+
 
 pub struct BrokerClient {
     registry: Arc<LocalRegistry>,
@@ -28,6 +35,12 @@ impl BrokerClient {
         let (local, _incoming_tx) = InMemoryTransport::new(registry.clone());
         Self { registry, local }
     }
+
+    pub async fn subscribe(&self, address: String) -> Subscriber {
+        let (tx, rx) = mpsc::channel::<Message>(DEFAULT_CHANNEL_CAPACITY);
+        self.registry.register(address.clone(), tx);
+        Subscriber::new(rx, address, self.registry.clone())
+    }    
     
     /// Register itself as a receiver at the specified address.
     pub async fn bind(&self, address: String, incoming_tx: tokio::sync::mpsc::Sender<Message>) {
@@ -68,7 +81,6 @@ impl BrokerClient {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use tokio::sync::mpsc;
 
     use super::*;
     use crate::test_utils;
@@ -76,32 +88,24 @@ mod tests {
     #[tokio::test]
     async fn test_in_memory_message_delivery_in_only() {
         // 1. Initialize registry and client
-        let registry = LocalRegistry::new();
+        let registry = Arc::new(LocalRegistry::new());
         let client = BrokerClient::new(registry);
 
         // 2. Prepare the receiver (Actor pattern)
-        // Create a dedicated channel for the receiver. 
-        // The receiver decides where to store its Receiver, and only registers the Sender with the broker.
-        let (receiver_tx, mut receiver_rx) = mpsc::channel::<Message>(10);
         let target_address = "arcella:core:test:receiver".to_string();
-        
-        // Register the address with the broker
-        client.bind(target_address.clone(), receiver_tx).await;
+        let mut subscriber = client.subscribe(target_address.clone()).await;
 
         // 3. Create a test message
-        let original_message = test_utils::dummy_in_only_message("test:ping",
-            &target_address,
-            b"hello from sender");
+        let original_message = test_utils::dummy_in_only_message(Bytes::from("test:ping"),
+            Bytes::from(target_address.clone()),
+            Bytes::from("hello from sender"));
 
         // 4. Action: Send the message
         let send_result = client.send(&target_address, original_message.clone()).await;
-        
-        // Verify that the broker successfully accepted the message for delivery
         assert!(send_result.is_ok(), "Send operation should succeed");
 
         // 5. Verification: Receiving the message on the receiver side
-        let received_message = receiver_rx.recv().await;
-        
+        let received_message = subscriber.recv().await;
         assert!(received_message.is_some(), "Receiver should get a message");
         assert_eq!(
             original_message, 
@@ -112,12 +116,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_in_memory_message_delivery_to_unknown_address() {
-        let registry = LocalRegistry::new();
+        let registry = Arc::new(LocalRegistry::new());
         let client = BrokerClient::new(registry);
 
-        let msg = test_utils::dummy_in_only_message("test:ping",
-            "arcella:unknown:address",
-            b"");
+        let msg = test_utils::dummy_in_only_message(Bytes::from("test:ping"),
+            Bytes::from("arcella:unknown:address"),
+            Bytes::from(""));
 
         // Attempt to send to an unregistered address
         let result = client.send("arcella:unknown:address", msg).await;
@@ -129,7 +133,7 @@ mod tests {
     #[tokio::test]
     async fn test_multi_recipient_routing() {
         // 1. Initialize the broker
-        let registry = LocalRegistry::new();
+        let registry = Arc::new(LocalRegistry::new());
         let client = BrokerClient::new(registry);
 
         // 2. Register multiple receivers with different addresses
@@ -139,11 +143,9 @@ mod tests {
             "arcella:batch:processor",
         ];
 
-        let mut receivers = Vec::new();
+        let mut subscribers = Vec::new();
         for addr in &addresses {
-            let (tx, rx) = mpsc::channel::<Message>(10);
-            client.bind(addr.to_string(), tx).await;
-            receivers.push(rx);
+            subscribers.push(client.subscribe(addr.to_string()).await);
         }
 
         // 3. Send mixed messages to different addresses
@@ -158,9 +160,9 @@ mod tests {
         ];
 
         for (addr, msg_type, payload) in &test_messages {
-            let msg = test_utils::dummy_in_only_message(msg_type,
-                addr,
-                payload);
+            let msg = test_utils::dummy_in_only_message(Bytes::from(msg_type.clone()),
+                Bytes::from(addr.clone()),
+                payload.clone());
 
             let result = client.send(addr, msg).await;
             assert!(result.is_ok(), "Send to {} should succeed", addr);
@@ -168,72 +170,71 @@ mod tests {
 
         // 4. Verification: each receiver got only its messages in the correct order
         // Receiver 0: arcella:core:users
-        let mut rx0 = receivers.remove(0);
-        let msg1 = rx0.recv().await.unwrap();
+        let msg1 = subscribers[0].recv().await.unwrap();
         assert_eq!(msg1.msg_type, "user:created");
         assert_eq!(msg1.payload, Bytes::from("user1"));
 
-        let msg2 = rx0.recv().await.unwrap();
+        let msg2 = subscribers[0].recv().await.unwrap();
         assert_eq!(msg2.msg_type, "user:updated");
         assert_eq!(msg2.payload, Bytes::from("user2"));
 
-        let msg3 = rx0.recv().await.unwrap();
+        let msg3 = subscribers[0].recv().await.unwrap();
         assert_eq!(msg3.msg_type, "user:deleted");
         assert_eq!(msg3.payload, Bytes::from("user3"));
 
         // Receiver 1: arcella:web:api
-        let mut rx1 = receivers.remove(0);
-        let msg4 = rx1.recv().await.unwrap();
+        let msg4 = subscribers[1].recv().await.unwrap();
         assert_eq!(msg4.msg_type, "http:request");
         assert_eq!(msg4.payload, Bytes::from("GET /api"));
 
-        let msg5 = rx1.recv().await.unwrap();
+        let msg5 = subscribers[1].recv().await.unwrap();
         assert_eq!(msg5.msg_type, "http:response");
         assert_eq!(msg5.payload, Bytes::from("200 OK"));
 
         // Receiver 2: arcella:batch:processor
-        let mut rx2 = receivers.remove(0);
-        let msg6 = rx2.recv().await.unwrap();
+        let msg6 = subscribers[2].recv().await.unwrap();
         assert_eq!(msg6.msg_type, "batch:job");
         assert_eq!(msg6.payload, Bytes::from("job1"));
 
-        let msg7 = rx2.recv().await.unwrap();
+        let msg7 = subscribers[2].recv().await.unwrap();
         assert_eq!(msg7.msg_type, "batch:complete");
         assert_eq!(msg7.payload, Bytes::from("job1:done"));
 
         // 5. Verification: channels are empty (no more messages)
-        assert!(rx0.try_recv().is_err(), "users channel should be empty");
-        assert!(rx1.try_recv().is_err(), "api channel should be empty");
-        assert!(rx2.try_recv().is_err(), "processor channel should be empty");
+        assert!(subscribers[0].try_recv().is_err(), "users channel should be empty");
+        assert!(subscribers[1].try_recv().is_err(), "api channel should be empty");
+        assert!(subscribers[2].try_recv().is_err(), "processor channel should be empty");
     }
 
     #[tokio::test]
     async fn test_dynamic_registration() {
-        let registry = LocalRegistry::new();
+        let registry = Arc::new(LocalRegistry::new());
         let client = BrokerClient::new(registry.clone());
 
+        let address = Bytes::from_static(b"arcella:test");
+        let payload = Bytes::from_static(b"");
+
         // Sending before registration should return an error
-        let msg = test_utils::dummy_in_only_message("test",
-            "arcella:test",
-            b"");
+        let msg = test_utils::dummy_in_only_message(Bytes::from_static(b"test"),
+            address.clone(),
+            payload.clone());
         
         assert!(client.send("arcella:test", msg.clone()).await.is_err());
 
         // Registration
-        let (tx, mut rx) = mpsc::channel(10);
-        client.bind("arcella:test".to_string(), tx).await;
+        let mut subscriber = client.subscribe("arcella:test".to_string()).await;
 
         // Now sending should succeed
         assert!(client.send("arcella:test", msg).await.is_ok());
-        assert!(rx.recv().await.is_some());
+        assert!(subscriber.recv().await.is_some());
 
         // Unregistration
         client.unbind("arcella:test").await;
 
         // Should return an error again
-        let msg2 = test_utils::dummy_in_only_message("test2",
-            "arcella:test",
-            b"");
+        let msg2 = test_utils::dummy_in_only_message(Bytes::from_static(b"test2"),
+            address.clone(),
+            payload.clone());
         assert!(client.send("arcella:test", msg2).await.is_err());
     }    
 
