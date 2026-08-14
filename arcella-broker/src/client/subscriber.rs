@@ -28,11 +28,17 @@ impl Subscriber {
         Self { rx, address, registry }
     }
 
+    pub fn bind(address: String, registry: Arc<LocalRegistry>, capacity: usize) -> Self {
+        let (tx, rx) = mpsc::channel::<Message>(capacity);
+        registry.register(address.clone(), tx);
+        Self { rx, address, registry }
+    }    
+
     pub async fn recv(&mut self) -> Option<Message> {
         self.rx.recv().await
     }
 
-    pub fn try_recv(&mut self) -> Result<Message, tokio::sync::mpsc::error::TryRecvError> {
+    pub fn try_recv(&mut self) -> Result<Message, mpsc::error::TryRecvError> {
         self.rx.try_recv()
     }  
 

@@ -8,7 +8,6 @@
 // except according to those terms.
 
 use std::sync::Arc;
-use tokio::sync::mpsc;
 
 pub mod in_memory;
 pub mod registry;
@@ -18,7 +17,7 @@ use crate::protocol::Message;
 use crate::transport::{Transport, TransportError, TransportResult};
 
 use in_memory::InMemoryTransport;
-use registry::LocalRegistry;
+use registry::{LocalChannel, LocalRegistry};
 use subscriber::Subscriber;
 
 const DEFAULT_CHANNEL_CAPACITY: usize = 1024;
@@ -37,13 +36,11 @@ impl BrokerClient {
     }
 
     pub async fn subscribe(&self, address: String) -> Subscriber {
-        let (tx, rx) = mpsc::channel::<Message>(DEFAULT_CHANNEL_CAPACITY);
-        self.registry.register(address.clone(), tx);
-        Subscriber::new(rx, address, self.registry.clone())
+        Subscriber::bind(address, self.registry.clone(), DEFAULT_CHANNEL_CAPACITY)
     }    
     
     /// Register itself as a receiver at the specified address.
-    pub async fn bind(&self, address: String, incoming_tx: tokio::sync::mpsc::Sender<Message>) {
+    pub async fn bind(&self, address: String, incoming_tx: LocalChannel) {
         self.registry.register(address, incoming_tx);
     }
 
