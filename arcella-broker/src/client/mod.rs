@@ -228,30 +228,28 @@ mod tests {
         let client = BrokerClient::new(registry);
         let addr = "arcella:test:duplicate";
 
-        // 1. Первая подписка
+        // 1. First subscription
         let mut sub1 = client.subscribe(addr.to_string()).await;
         
-        // 2. Вторая подписка на тот же адрес 
-        // (Текущая реализация молча перезаписывает tx1 на tx2 в DashMap)
+        // 2. Second subscription to the same address 
         let mut sub2 = client.subscribe(addr.to_string()).await;
 
-        // 3. sub1 выходит из области видимости
+        // 3. sub1 goes out of scope
         drop(sub1);
-        // Срабатывает Drop: self.registry.unregister(&self.address);
-        // Registry теперь пуст! tx2 (принадлежащий sub2) удален из реестра.
+        // Drop triggers: self.registry.unregister(&self.address);
+        // Registry is now empty! tx2 (owned by sub2) is removed from the registry.
 
-        // 4. Попытка отправки сообщения
+        // 4. Attempt to send a message
         let msg = test_utils::dummy_in_only_message(
             Bytes::from("test"), 
             Bytes::from(addr), 
             Bytes::from("hello")
         );
         
-        // ОЖИДАНИЕ: Send должен succeed, так как sub2 жив и готов принимать.
-        // РЕАЛЬНОСТЬ: ОШИБКА RecipientNotFound, так как Drop(sub1) вычистил реестр.
+        // EXPECTATION: Send should succeed, as sub2 is alive and ready to receive.
         let result = client.send(addr, msg).await;
         
-        // Этот assert доказывает наличие бага:
+        // This assert proves the bug exists:
         assert!(!result.is_err(), "BUG CONFIRMED: sub2 is alive but registry is empty!");
         assert!(sub2.try_recv().is_err(), "sub2 never received the message");
     }
