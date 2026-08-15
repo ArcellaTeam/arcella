@@ -31,7 +31,7 @@ pub struct BrokerClient {
 
 impl BrokerClient {
     pub fn new(registry: Arc<LocalRegistry>) -> Self {
-        let (local, _incoming_tx) = InMemoryTransport::new(registry.clone());
+        let local = InMemoryTransport::new(registry.clone());
         Self { registry, local }
     }
 
@@ -52,25 +52,12 @@ impl BrokerClient {
 
     /// Send a message (InOnly).
     pub async fn send(&self, address: &str, message: Message) -> TransportResult<()> {
-        // Priority 1: local delivery
-        if self.registry.has_local(address) {
-            return self.local.send(address, message).await;
-        }
-        
-        // Priority 2: IPC (stage 2)
-        // self.remote.as_ref().ok_or(TransportError::RecipientNotFound(...))?
-        //     .send(address, message).await
-        
-        Err(TransportError::RecipientNotFound(address.to_string()))
+        self.local.send(address, message).await
     }
 
     /// Send a request and wait for a response (InOut).
     pub async fn request(&self, address: &str, message: Message) -> TransportResult<Message> {
-        if self.registry.has_local(address) {
-            return self.local.request(address, message).await;
-        }
-        
-        Err(TransportError::RecipientNotFound(address.to_string()))
+        self.local.request(address, message).await
     }
 
 }
@@ -234,5 +221,39 @@ mod tests {
             payload.clone());
         assert!(client.send("arcella:test", msg2).await.is_err());
     }    
+
+    #[tokio::test]
+    async fn test_duplicate_subscription_causes_premature_unregistration() {
+        let registry = Arc::new(LocalRegistry::new());
+        let client = BrokerClient::new(registry);
+        let addr = "arcella:test:duplicate";
+
+        // 1. Первая подписка
+        let mut sub1 = client.subscribe(addr.to_string()).await;
+        
+        // 2. Вторая подписка на тот же адрес 
+        // (Текущая реализация молча перезаписывает tx1 на tx2 в DashMap)
+        let mut sub2 = client.subscribe(addr.to_string()).await;
+
+        // 3. sub1 выходит из области видимости
+        drop(sub1);
+        // Срабатывает Drop: self.registry.unregister(&self.address);
+        // Registry теперь пуст! tx2 (принадлежащий sub2) удален из реестра.
+
+        // 4. Попытка отправки сообщения
+        let msg = test_utils::dummy_in_only_message(
+            Bytes::from("test"), 
+            Bytes::from(addr), 
+            Bytes::from("hello")
+        );
+        
+        // ОЖИДАНИЕ: Send должен succeed, так как sub2 жив и готов принимать.
+        // РЕАЛЬНОСТЬ: ОШИБКА RecipientNotFound, так как Drop(sub1) вычистил реестр.
+        let result = client.send(addr, msg).await;
+        
+        // Этот assert доказывает наличие бага:
+        assert!(!result.is_err(), "BUG CONFIRMED: sub2 is alive but registry is empty!");
+        assert!(sub2.try_recv().is_err(), "sub2 never received the message");
+    }
 
 }

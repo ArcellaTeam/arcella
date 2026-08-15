@@ -10,7 +10,6 @@
 use std::sync::Arc;
 use std::future::Future;
 use std::pin::Pin;
-use tokio::sync::mpsc;
 use crate::protocol::Message;
 use crate::transport::{Transport, TransportError, TransportResult};
 use super::registry::LocalRegistry;
@@ -22,22 +21,11 @@ use super::registry::LocalRegistry;
 /// in the same process as the sender.
 pub struct InMemoryTransport {
     registry: Arc<LocalRegistry>,
-    /// Channel for incoming messages (if this client is also a recipient)
-    incoming_rx: Mutex<mpsc::Receiver<Message>>,
 }
 
-use tokio::sync::Mutex;
-
 impl InMemoryTransport {
-    pub fn new(registry: Arc<LocalRegistry>) -> (Self, mpsc::Sender<Message>) {
-        let (tx, rx) = mpsc::channel(1024);
-        (
-            Self {
-                registry,
-                incoming_rx: Mutex::new(rx),
-            },
-            tx,
-        )
+    pub fn new(registry: Arc<LocalRegistry>) -> Self {
+        Self { registry }
     }
 }
 
@@ -66,17 +54,8 @@ impl Transport for InMemoryTransport {
         mut message: Message,
     ) -> Pin<Box<dyn Future<Output = TransportResult<Message>> + Send + 'a>> {
         Box::pin(async move {
-            use crate::protocol::TransferMode;
-            message.header.flags = TransferMode::InOut.to_flags();
-            
-            // For InOut in in-memory mode, we use a temporary reply channel
-            let (reply_tx, mut reply_rx) = mpsc::channel::<Message>(1);
-            
-            // In a real scenario, reply_tx needs to be injected into the message
-            // so the recipient can send a response. Simplified for now:
-            self.send(address, message).await?;
-            
-            reply_rx.recv().await.ok_or(TransportError::ConnectionClosed)
+            // TODO
+            Err(TransportError::ConnectionClosed)
         })
     }
 
@@ -84,8 +63,8 @@ impl Transport for InMemoryTransport {
         &'a self,
     ) -> Pin<Box<dyn Future<Output = TransportResult<Message>> + Send + 'a>> {
         Box::pin(async move {
-            let mut rx = self.incoming_rx.lock().await;
-            rx.recv().await.ok_or(TransportError::ConnectionClosed)
+            // TODO
+            Err(TransportError::ConnectionClosed)
         })
     }
 

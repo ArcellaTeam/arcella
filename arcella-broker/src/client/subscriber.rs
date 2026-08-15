@@ -46,10 +46,6 @@ impl Subscriber {
         &self.address
     }
 
-    pub fn unsubscribe(self) {
-        drop(self);
-    }        
-
 }
 
 impl Drop for Subscriber {
