@@ -50,7 +50,7 @@ impl Subscriber {
 
 impl Drop for Subscriber {
     fn drop(&mut self) {
-        // Автоматическая очистка при выходе из области видимости
+        // Automatic cleanup when going out of scope
         self.registry.unregister(&self.address);
     }
 }
