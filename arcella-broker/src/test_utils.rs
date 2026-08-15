@@ -10,9 +10,9 @@
 use bytes::Bytes;
 use std::sync::Arc;
 
-use crate::client::registry::LocalRegistry;
 use crate::client::BrokerClient;
 use crate::protocol::{Message, TransferMode};
+use crate::registry::LocalRegistry;
 
 /// Create a test client with a local reestr
 pub fn test_client() -> BrokerClient {

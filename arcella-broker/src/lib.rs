@@ -10,10 +10,9 @@
 #![deny(unsafe_code)]
 //#![warn(missing_docs)]
 
-pub mod protocol;
-
 pub mod error;
-
+pub mod protocol;
+pub mod registry;
 pub mod transport;
 
 #[cfg(feature = "client")]

@@ -1,4 +1,4 @@
-// arcella/arcella-broker/src/client/in_memory.rs
+// arcella/arcella-broker/src/transport/in_memory.rs
 //
 // Copyright (c) 2026 Arcella Team
 //
@@ -10,9 +10,11 @@
 use std::sync::Arc;
 use std::future::Future;
 use std::pin::Pin;
+
 use crate::protocol::Message;
-use crate::transport::{Transport, TransportError, TransportResult};
-use super::registry::LocalRegistry;
+use crate::registry::LocalRegistry;
+
+use super::{Transport, TransportError, TransportResult};
 
 /// Transport for in-process delivery.
 /// 

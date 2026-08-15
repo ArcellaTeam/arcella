@@ -10,6 +10,8 @@
 use std::future::Future;
 use std::pin::Pin;
 
+pub mod in_memory;
+
 use crate::protocol::Message;
 
 /// Transport error

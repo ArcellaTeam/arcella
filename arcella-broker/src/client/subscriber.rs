@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use crate::protocol::Message;
-use super::registry::LocalRegistry;
+use crate::registry::LocalRegistry;
 
 pub struct Subscriber {
     rx: mpsc::Receiver<Message>,

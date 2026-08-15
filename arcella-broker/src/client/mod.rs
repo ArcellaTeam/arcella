@@ -9,15 +9,12 @@
 
 use std::sync::Arc;
 
-pub mod in_memory;
-pub mod registry;
 mod subscriber;
 
 use crate::protocol::Message;
-use crate::transport::{Transport, TransportError, TransportResult};
+use crate::registry::{LocalChannel, LocalRegistry};
+use crate::transport::{in_memory::InMemoryTransport, Transport, TransportError, TransportResult};
 
-use in_memory::InMemoryTransport;
-use registry::{LocalChannel, LocalRegistry};
 use subscriber::Subscriber;
 
 const DEFAULT_CHANNEL_CAPACITY: usize = 1024;
